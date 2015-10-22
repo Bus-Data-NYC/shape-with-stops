@@ -5,17 +5,17 @@ var mysql      = require('mysql');
 var credentials = require('./credentials.js');
 
 var connection = mysql.createConnection({
-  host     : credentials.host,
-  user     : credentials.username,
-  password : credentials.password,
-  database : credentials.database,
+	host     : credentials.host,
+	user     : credentials.username,
+	password : credentials.password,
+	database : credentials.database,
 });
 connection.connect(function(err){
 	if(!err) {
-	  console.log("Database is connected, running csv load operation.");
-	  run();
+		console.log("Database is connected, running csv load operation.");
+		run();
 	} else {
-	  console.log("Error connecting database ...");  
+		console.log("Error connecting database ...");  
 	}
 });
 
@@ -33,8 +33,8 @@ function loadCSV (loc, cb) {
 				if (s[shape_index] == undefined)
 					s[shape_index] = [];
 				s[shape_index].push({
-					'id': stop_id,
-					'loc': [stop_lat, stop_lon]
+					id: stop_id,
+					loc: [Number(stop_lat), Number(stop_lon)]
 				});
 			}
 		})
@@ -58,7 +58,7 @@ function cleanRows (rs) {
 	return rs.map(function (r) {
 		return {
 			seq: r.shape_pt_sequence,
-			loc: [r.shape_pt_lat, r.shape_pt_lon]
+			loc: [Number(r.shape_pt_lat), Number(r.shape_pt_lon)]
 		}
 	});
 };
@@ -98,6 +98,98 @@ function hvrsn (ll1, ll2) {
 	return Number(dist.toFixed(6));
 };
 
+function getAllignedStop (ptB, st, ptA) {
+	var sb = hvrsn(st, ptB),
+			ba = hvrsn(ptB, ptA),
+			as = hvrsn(ptA, st);
+
+	if (ba == 0) {
+		return ptA;
+	} else {
+		var angle = {
+					a: Math.acos(((as * as) + (ba * ba) - (sb * sb)) / (2 * ba * as)),
+					s: Math.acos(((as * as) + (sb * sb) - (ba * ba)) / (2 * sb * as)),
+					b: Math.acos(((sb * sb) + (ba * ba) - (as * as)) / (2 * ba * sb))
+				};
+
+		angle['s1'] = 90 - angle.b;
+		angle['s2'] = 90 - angle.a;
+
+		var v = Math.cos(angle.s2) * as,
+
+				p1 = Math.tan(angle.s1) * v,
+				p2 = Math.tan(angle.s2) * v,
+
+				crnr = [ptA[0], ptB[1]],
+				genh = hvrsn(ptB, crnr),
+				genw = hvrsn(crnr, ptA),
+				vecAng = Math.asin(genh/ba),
+
+				delh = Math.sin(vecAng) * p2,
+				delw = Math.cos(vecAng) * p2,
+
+				lat = ptA[0] - ((ptA[0] - ptB[0]) * (delh / genh)),
+				lon = ptA[1] - ((ptA[1] - ptB[1]) * (delw / genw));
+
+				return [lat, lon];
+	}
+};
+
+
+function calcShapeLens (shape) {
+	return shape.map(function (a, i) { 
+		if (i > 0) {
+			var b = shape[i-1];
+			a.d = b.d + hvrsn(a.loc, b.loc);
+		} else {
+			a.d = 0;
+		}
+		return a;
+	});
+};
+
+function calcStopLens (stop, shape) {
+	return stop.map(function (a, ai) {
+		var cl = {o: null, a: null, d: null};
+		shape.forEach(function (b, bi) {
+			var d = null,
+					l = null;
+			if (bi == 0) {
+				d = hvrsn(a.loc, b.loc);
+				l = b.loc;
+			} else {
+				var p = shape[bi - 1];
+				d = hvrsn(a.loc, b.loc) + hvrsn(a.loc, p.loc);
+				l = getAllignedStop(p.loc, a.loc, b.loc);
+			}
+			if (cl.o == null || d < cl.d) {
+				cl.o = b;
+				cl.a = l;
+				cl.d = d;
+			}
+		});
+		if (cl.o !== null) {
+			a.d = cl.o.d == 0 ? 0 : Number((hvrsn(a.loc, cl.a) + cl.o.d).toFixed(2));
+		} else {
+			a.d = '\N';
+		}
+		return a;
+	});
+}
+
+
+function stopDistances (k, s, sh, cb) {
+	var st = {};
+	k.forEach(function (e) {
+		var stop = s[e],
+				shape = sh[e];
+		shape = calcShapeLens(shape);
+		stop = calcStopLens(stop, shape);
+		st[e] = stop;
+	});
+	cb(st);
+}
+
 
 
 function run () {
@@ -106,50 +198,9 @@ function run () {
 		var k = Object.keys(s);
 		loadShapes(k, function (sh) {
 			console.log('Loaded all shapes; running stop calculations.');
-			var st = {};
-			k.forEach(function (e) {
-
-				var stop = s[e],
-						shape = sh[e];
-
-				shape.sort(function (a, b) {
-					return Number(a.seq) - Number(b.seq);
-				});
-				shape = shape.map(function (a, i) { 
-					if (i > 0) {
-						var b = shape[i-1];
-						a.d = b.d + hvrsn(a.loc, b.loc);
-					} else {
-						a.d = 0;
-					}
-					return a;
-				});
-				
-				stop.sort(function (a, b) {
-					return Number(a.id) - Number(b.id);
-				});				
-				stop = stop.map(function (a, ai) {
-					var cl = {o: null, d: null};
-					shape.forEach(function (b, bi) {
-						var d = null;
-						if (bi == 0) {
-							d = hvrsn(a.loc, b.loc)
-						} else {
-							d = hvrsn(a.loc, b.loc) + hvrsn(a.loc, shape[bi - 1].loc);
-						}
-						if (cl.o == null || d < cl.d) {
-							cl.o = b;
-							cl.d = d;
-						}
-					});
-					if (cl.o !== null) {
-						a.d = hvrsn(a.loc, cl.o.loc) + cl.o.d;
-					}
-					return a;
-				});
-
-				console.log(stop);
-
+			stopDistances(k, s, sh, function (st) {
+				console.log('Finished stop calculations; running compile.');
+				console.log(st);
 			});
 		});
 	});
