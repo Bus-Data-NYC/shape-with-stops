@@ -1,4 +1,5 @@
-var csv = require("fast-csv");
+var csv = require('fast-csv');
+var fs = require('fs')
 
 // sql connection
 var mysql      = require('mysql');
@@ -200,7 +201,20 @@ function run () {
 			console.log('Loaded all shapes; running stop calculations.');
 			stopDistances(k, s, sh, function (st) {
 				console.log('Finished stop calculations; running compile.');
-				console.log(st);
+
+				var out = [['shape_index,stop_id,dist']];
+				Object.keys(st).forEach(function (k) {
+					st[k].forEach(function (e) {
+						out.push([k, e.id, e.d].join(','));
+					});
+				});
+
+				out = out.join('\r\n');
+				fs.writeFile("out.csv", out, function (err) {
+				  if (err) { return console.log('ERR', err); }
+				  console.log("The file was saved!");
+				}); 
+
 			});
 		});
 	});
