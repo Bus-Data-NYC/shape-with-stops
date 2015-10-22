@@ -64,12 +64,12 @@ function cleanRows (rs) {
 	});
 };
 
-function loadShapes (s, cb) {
+function loadShapes (k, cb) {
 	var sh = {};
-	s.forEach(function (k, i) {
-		getShape(k, function (r) {
-			sh[k] = cleanRows(r);
-			if (s.length - 1 == i) {
+	k.forEach(function (s, i) {
+		getShape(s, function (r) {
+			sh[s] = cleanRows(r);
+			if (k.length - 1 == i) {
 				cb(sh);
 			}
 		});
@@ -113,6 +113,9 @@ function getAllignedStop (ptB, st, ptA) {
 					b: Math.acos(((sb * sb) + (ba * ba) - (as * as)) / (2 * ba * sb))
 				};
 
+		if (angle.a > 90 || angle.b > 90)
+			return null;
+
 		angle['s1'] = 90 - angle.b;
 		angle['s2'] = 90 - angle.a;
 
@@ -131,6 +134,12 @@ function getAllignedStop (ptB, st, ptA) {
 
 				lat = ptA[0] - ((ptA[0] - ptB[0]) * (delh / genh)),
 				lon = ptA[1] - ((ptA[1] - ptB[1]) * (delw / genw));
+
+				if (isNaN(lat) || isNaN(lon)) {
+					console.log('NaN Err: ', ptB, st, ptA);
+					console.log(sb, ba, as);
+					console.log('');
+				}
 
 				return [lat, lon];
 	}
@@ -163,7 +172,7 @@ function calcStopLens (stop, shape) {
 				d = hvrsn(a.loc, b.loc) + hvrsn(a.loc, p.loc);
 				l = getAllignedStop(p.loc, a.loc, b.loc);
 			}
-			if (cl.o == null || d < cl.d) {
+			if ((cl.o == null || d < cl.d) && (cl.l !== null)) {
 				cl.o = b;
 				cl.a = l;
 				cl.d = d;
@@ -176,12 +185,14 @@ function calcStopLens (stop, shape) {
 		}
 		return a;
 	});
-}
+};
 
 
 function stopDistances (k, s, sh, cb) {
+	console.log('Here', k);
 	var st = {};
 	k.forEach(function (e) {
+		console.log('Running stop calcs for shp: ' + e)
 		var stop = s[e],
 				shape = sh[e];
 		shape = calcShapeLens(shape);
@@ -189,7 +200,7 @@ function stopDistances (k, s, sh, cb) {
 		st[e] = stop;
 	});
 	cb(st);
-}
+};
 
 
 
