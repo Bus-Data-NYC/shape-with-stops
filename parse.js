@@ -113,7 +113,7 @@ function getAllignedStop (ptB, st, ptA) {
 					b: Math.acos(((sb * sb) + (ba * ba) - (as * as)) / (2 * ba * sb))
 				};
 
-		if (angle.a > 90 || angle.b > 90)
+		if (angle.a >= 90 || angle.b >= 90)
 			return null;
 
 		angle['s1'] = 90 - angle.b;
@@ -126,20 +126,42 @@ function getAllignedStop (ptB, st, ptA) {
 
 				crnr = [ptA[0], ptB[1]],
 				genh = hvrsn(ptB, crnr),
-				genw = hvrsn(crnr, ptA),
-				vecAng = Math.asin(genh/ba),
+				genw = hvrsn(crnr, ptA);
 
-				delh = Math.sin(vecAng) * p2,
-				delw = Math.cos(vecAng) * p2,
+		var vecAng, latrat, lonrat;
+		if (genh == 0 && genw !== 0)
+			vecAng = Math.asin(genw/ba);
+		else if (genh !== 0 && genw == 0)
+			vecAng = Math.asin(genh/ba);
+		else
+			return ptA;
 
-				lat = ptA[0] - ((ptA[0] - ptB[0]) * (delh / genh)),
-				lon = ptA[1] - ((ptA[1] - ptB[1]) * (delw / genw));
+		var delh = Math.sin(vecAng) * p2,
+				delw = Math.cos(vecAng) * p2;
 
-				if (isNaN(lat) || isNaN(lon)) {
-					console.log('NaN Err: ', ptB, st, ptA);
-					console.log(sb, ba, as);
-					console.log('');
-				}
+		var latrat, lonrat;
+		if (genh == 0 && genw !== 0) {
+			latrat = 0;
+			lonrat = 1;
+		}
+		else if (genh !== 0 && genw == 0) {
+			latrat = 1;
+			lonrat = 0;
+		}
+		else {
+			latrat = delh / genh;
+			lonrat = delw / genw;
+		}
+
+		var lat = ptA[0] - ((ptA[0] - ptB[0]) * latrat),
+				lon = ptA[1] - ((ptA[1] - ptB[1]) * lonrat);
+
+		if (isNaN(lat) || isNaN(lon)) {
+			console.log('NaN Err: ', vecAng);
+			console.log(delh, delw);
+			console.log(lat, lon);
+			console.log('');
+		}
 
 				return [lat, lon];
 	}
@@ -213,17 +235,20 @@ function run () {
 			stopDistances(k, s, sh, function (st) {
 				console.log('Finished stop calculations; running compile.');
 
+				var ns = 0;
 				var out = [['shape_index,stop_id,dist']];
 				Object.keys(st).forEach(function (k) {
 					st[k].forEach(function (e) {
 						out.push([k, e.id, e.d].join(','));
+						if (isNaN(e.id))
+							ns += 1;
 					});
 				});
 
 				out = out.join('\r\n');
 				fs.writeFile("out.csv", out, function (err) {
 				  if (err) { return console.log('ERR', err); }
-				  console.log("The file was saved!");
+				  console.log("The file was saved! NaN count: " + ns);
 				}); 
 
 			});
