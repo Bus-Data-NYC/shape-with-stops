@@ -1,6 +1,8 @@
 var csv = require('fast-csv');
 var fs = require('fs')
 
+// global variables for performance monitoring
+var peakStats = {rss: 0, heapTotal: 0, heapUsed: 0};
 
 // sql connection
 var mysql      = require('mysql');
@@ -103,7 +105,10 @@ function loadShapes (k, cb) {
 	getShape(0);
 	function getShape (i) {
 		var s = k[i];
-		if (i%100 == 0) console.log('    ...querying stop id: ' + s + ' out of ' + (k.length - 1));
+		if (i%150 == 0) {
+			logOps();
+			console.log('    ...querying stop id: ' + s + ' out of ' + (k.length - 1));
+		}
 		
 		var query = 'SELECT shape_pt_lat, shape_pt_lon, shape_pt_sequence FROM shapes WHERE shape_index = ' + s + ';';
 		connection.query(query, function (error, rows, fields) {
@@ -139,7 +144,11 @@ function loadShapes (k, cb) {
 function stopDistances (k, s, sh, cb) {
 	var st = {};
 	k.forEach(function (e, i) {
-		if (i%100 == 0) console.log('    ...running stop calcs for shape: ' + e + ' out of ' + (k.length - 1));
+		if (i%150 == 0) {
+			logOps();
+			console.log('    ...running stop calcs for shape: ' + e + ' out of ' + (k.length - 1));
+		}
+
 		var stop = s[e],
 				shape = sh[e];
 		shape = calcShapeLens(shape);
@@ -287,8 +296,33 @@ function getAllignedStop (ptB, st, ptA) {
 
 
 function logOps (msg) {
-	console.log(msg);
-	console.log('Current processes costs: ', process.memoryUsage(), '\r\n');
+	if (msg !== undefined) console.log(msg + '\r\n');
+
+	var currMem = process.memoryUsage();
+	var changes = [];
+
+	if (peakStats.rss < currMem.rss) {
+		var pct = (((currMem.rss/peakStats.rss) - 1) * 100).toFixed(1).toString() + '%';
+		changes.push('rss increased ' + pct + ' from ' + peakStats.rss + ' to ' + currMem.rss + '.');
+		peakStats.rss = currMem.rss;
+	}
+
+	if (peakStats.heapTotal < currMem.heapTotal) {
+		var pct = (((currMem.heapTotal/peakStats.heapTotal) - 1) * 100).toFixed(1).toString() + '%';
+		changes.push('heapTotal increased ' + pct + ' from ' + peakStats.heapTotal + ' to ' + currMem.heapTotal + '.');
+		peakStats.heapTotal = currMem.heapTotal;
+	}
+
+	if (peakStats.heapUsed < currMem.heapUsed) {
+		var pct = (((currMem.heapUsed/peakStats.heapUsed) - 1) * 100).toFixed(1).toString() + '%';
+		changes.push('heapUsed increased ' + pct + ' from ' + peakStats.heapUsed + ' to ' + currMem.heapUsed + '.');
+		peakStats.heapUsed = currMem.heapUsed;
+	}
+
+	if (changes.length > 0) {
+		var c = changes.join('\r\n      ');
+		console.log('    Current resource changes: \r\n      ' + c + '\r\n');
+	}
 };
 
 
