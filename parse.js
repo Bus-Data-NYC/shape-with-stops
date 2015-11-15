@@ -20,7 +20,7 @@ connection.connect(function(err){
 
 		// STEP 1
 		loadCSV('allpts.csv', function (s) {
-			var k = Object.keys(s); k = k.slice(0, 10);
+			var k = Object.keys(s); //k = k.slice(0, 10);
 			logOps('Loaded all stops (' + k.length + ' total); running shape queries.');
 
 			// STEP 2
@@ -31,8 +31,8 @@ connection.connect(function(err){
 						console.log(e.id + ': ' + e.error);
 					});
 
-				} else {
-					logOps('Loaded all shapes (' + sh.length + ' total); running stop calculations.');
+				} else {console.log('sss', Object.keys(sh));
+					logOps('Loaded all shapes (' + Object.keys(sh).length + ' total); running stop calculations.');
 
 					// STEP 3
 					stopDistances(k, s, sh, function (st) {
@@ -53,7 +53,11 @@ connection.connect(function(err){
 							connection.end();
 
 						  if (err) { return console.log('ERR', err); }
-						  console.log("The file was saved! NaN count: " + ns);
+						  console.log('File was saved! NaN count: ' + ns);
+						  // var peakStats = {rss: 0, heapTotal: 0, heapUsed: 0};
+						  console.log('Performance peaks:  \r\nrss: ' + peakStats.rss + 
+						  																'\r\nheapTotal: ' + peakStats.heapTotal + 
+						  																'\r\nheapUsed: ' + peakStats.heapUsed);
 						}); 
 
 					});
@@ -62,7 +66,7 @@ connection.connect(function(err){
 		});
 
 	} else {
-		console.log("Error connecting database ...");  
+		console.log("Error connecting database ...", err);  
 	}
 });
 
@@ -296,7 +300,7 @@ function getAllignedStop (ptB, st, ptA) {
 
 
 function logOps (msg) {
-	if (msg !== undefined) console.log(msg + '\r\n');
+	if (msg !== undefined) console.log(msg + '\r\n\r\n');
 
 	var currMem = process.memoryUsage();
 	var changes = [];
