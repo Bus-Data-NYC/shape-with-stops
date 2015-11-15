@@ -1,6 +1,7 @@
 var csv = require('fast-csv');
 var fs = require('fs')
 
+
 // sql connection
 var mysql      = require('mysql');
 var credentials = require('./credentials.js');
@@ -13,15 +14,58 @@ var connection = mysql.createConnection({
 });
 connection.connect(function(err){
 	if(!err) {
-		console.log("Database is connected, running csv load operation.");
-		run();
+		logOps('Database is connected, running csv load operation.');
+
+		// STEP 1
+		loadCSV('allpts.csv', function (s) {
+			var k = Object.keys(s);
+			logOps('Loaded all stops (' + k.length + ' total); running shape queries.');
+
+			// STEP 2
+			loadShapes(k, function (sh, errors) {
+				if (sh == false) {
+					console.log('Failed to load all shapes. Errors on the following: ');
+					errors.forEach(function (e) {
+						console.log(e.id + ': ' + e.error);
+					});
+
+				} else {
+					logOps('Loaded all shapes; running stop calculations.');
+
+					stopDistances(k, s, sh, function (st) {
+						logOps('Finished stop calculations; running compile.');
+
+						var ns = 0;
+						var out = [['shape_index,stop_id,dist']];
+						Object.keys(st).forEach(function (k) {
+							st[k].forEach(function (e) {
+								out.push([k, e.id, e.d].join(','));
+								if (isNaN(e.id))
+									ns += 1;
+							});
+						});
+
+						out = out.join('\r\n');
+						fs.writeFile("out.csv", out, function (err) {
+						  if (err) { return console.log('ERR', err); }
+						  console.log("The file was saved! NaN count: " + ns);
+						}); 
+
+					});
+				}
+			});
+		});
+
 	} else {
 		console.log("Error connecting database ...");  
 	}
 });
 
 
+
+// STEP 1
 function loadCSV (loc, cb) {
+	// reassembles csv as large json, each obj. key is 
 	var s = {};
 	csv
 		.fromPath(loc)
@@ -31,8 +75,10 @@ function loadCSV (loc, cb) {
 						stop_id = data[1],
 						stop_lat = data[2],
 						stop_lon = data[3];
+
 				if (s[shape_index] == undefined)
 					s[shape_index] = [];
+
 				s[shape_index].push({
 					id: stop_id,
 					loc: [Number(stop_lat), Number(stop_lon)]
@@ -44,15 +90,46 @@ function loadCSV (loc, cb) {
 		});
 };
 
-function getShape (id, cb) {
-	var query = 'SELECT shape_pt_lat, shape_pt_lon, shape_pt_sequence FROM shapes WHERE shape_index = ' + id + ';';
-	connection.query(query, function (error, rows, fields) {
-		if (error) {
-			console.log('FAILED MySQL request for route: ', id);
+
+
+// STEP 2
+function loadShapes (k, cb) {
+	var listErrs = [];
+	var sh = {};
+
+	getShape(0);
+	function getShape (i) {
+		var id = k[i];
+		console.log('    ...querying id: ' + id);
+		
+		var query = 'SELECT shape_pt_lat, shape_pt_lon, shape_pt_sequence FROM shapes WHERE shape_index = ' + id + ';';
+		connection.query(query, function (error, rows, fields) {
+			if (error) {
+				listErrs.push({id: id, error: error});
+			} else {
+				sh[id] = rows.map(function (r) {
+					return {
+						seq: r.shape_pt_sequence,
+						loc: [Number(r.shape_pt_lat).toFixed(6), Number(r.shape_pt_lon).toFixed(6)]
+					}
+				});
+			}
+		});
+
+		// aggressively gc
+		error = rows = fields = null;
+
+		// exit on last index
+		if (i == (k.length - 1)) {
+			if (listErrs.length > 0) {
+				cb(false, listErrs);
+			}
+			cb(sh);
 		} else {
-			cb(rows);
+			getShape(i+1);
 		}
-	});
+
+	};
 };
 
 function cleanRows (rs) {
@@ -61,18 +138,6 @@ function cleanRows (rs) {
 			seq: r.shape_pt_sequence,
 			loc: [Number(r.shape_pt_lat), Number(r.shape_pt_lon)]
 		}
-	});
-};
-
-function loadShapes (k, cb) {
-	var sh = {};
-	k.forEach(function (s, i) {
-		getShape(s, function (r) {
-			sh[s] = cleanRows(r);
-			if (k.length - 1 == i) {
-				cb(sh);
-			}
-		});
 	});
 };
 
@@ -211,7 +276,6 @@ function calcStopLens (stop, shape) {
 
 
 function stopDistances (k, s, sh, cb) {
-	console.log('Here', k);
 	var st = {};
 	k.forEach(function (e) {
 		console.log('Running stop calcs for shp: ' + e)
@@ -224,37 +288,13 @@ function stopDistances (k, s, sh, cb) {
 	cb(st);
 };
 
-
-
-function run () {
-	loadCSV('allpts.csv', function (s) {
-		console.log('Loaded all stops; running shape queries.');
-		var k = Object.keys(s);
-		loadShapes(k, function (sh) {
-			console.log('Loaded all shapes; running stop calculations.');
-			stopDistances(k, s, sh, function (st) {
-				console.log('Finished stop calculations; running compile.');
-
-				var ns = 0;
-				var out = [['shape_index,stop_id,dist']];
-				Object.keys(st).forEach(function (k) {
-					st[k].forEach(function (e) {
-						out.push([k, e.id, e.d].join(','));
-						if (isNaN(e.id))
-							ns += 1;
-					});
-				});
-
-				out = out.join('\r\n');
-				fs.writeFile("out.csv", out, function (err) {
-				  if (err) { return console.log('ERR', err); }
-				  console.log("The file was saved! NaN count: " + ns);
-				}); 
-
-			});
-		});
-	});
+function logOps (msg) {
+	console.log(msg);
+	console.log('Current processes costs: ', process.memoryUsage(), '\r\n');
 };
+
+
+
 
 
 
