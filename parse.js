@@ -18,7 +18,7 @@ connection.connect(function(err){
 
 		// STEP 1
 		loadCSV('allpts.csv', function (s) {
-			var k = Object.keys(s);
+			var k = Object.keys(s); k = k.slice(0, 10);
 			logOps('Loaded all stops (' + k.length + ' total); running shape queries.');
 
 			// STEP 2
@@ -48,6 +48,8 @@ connection.connect(function(err){
 
 						out = out.join('\r\n');
 						fs.writeFile("out.csv", out, function (err) {
+							connection.end();
+
 						  if (err) { return console.log('ERR', err); }
 						  console.log("The file was saved! NaN count: " + ns);
 						}); 
@@ -147,7 +149,7 @@ function stopDistances (k, s, sh, cb) {
 	cb(st);
 };
 
-function calcShapeLens (shape) {console.log(shape.length, shape);
+function calcShapeLens (shape) {
 	return shape.map(function (a, i) { 
 		if (i > 0) {
 			var b = shape[i-1];
@@ -273,9 +275,9 @@ function getAllignedStop (ptB, st, ptA) {
 			console.log(delh, delw);
 			console.log(lat, lon);
 			console.log('');
+		} else {
+			return [lat, lon];
 		}
-
-				return [lat, lon];
 	}
 };
 
@@ -288,6 +290,9 @@ function logOps (msg) {
 	console.log(msg);
 	console.log('Current processes costs: ', process.memoryUsage(), '\r\n');
 };
+
+
+
 
 
 
