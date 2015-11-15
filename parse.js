@@ -30,8 +30,9 @@ connection.connect(function(err){
 					});
 
 				} else {
-					logOps('Loaded all shapes; running stop calculations.');
+					logOps('Loaded all shapes (' + sh.length + ' total); running stop calculations.');
 
+					// STEP 3
 					stopDistances(k, s, sh, function (st) {
 						logOps('Finished stop calculations; running compile.');
 
@@ -99,45 +100,91 @@ function loadShapes (k, cb) {
 
 	getShape(0);
 	function getShape (i) {
-		var id = k[i];
-		console.log('    ...querying id: ' + id);
+		var s = k[i];
+		if (i%100 == 0) console.log('    ...querying stop id: ' + s + ' out of ' + (k.length - 1));
 		
-		var query = 'SELECT shape_pt_lat, shape_pt_lon, shape_pt_sequence FROM shapes WHERE shape_index = ' + id + ';';
+		var query = 'SELECT shape_pt_lat, shape_pt_lon, shape_pt_sequence FROM shapes WHERE shape_index = ' + s + ';';
 		connection.query(query, function (error, rows, fields) {
 			if (error) {
-				listErrs.push({id: id, error: error});
+				listErrs.push({id: s, error: error});
 			} else {
-				sh[id] = rows.map(function (r) {
+				sh[s] = rows.map(function (r) {
 					return {
 						seq: r.shape_pt_sequence,
 						loc: [Number(r.shape_pt_lat).toFixed(6), Number(r.shape_pt_lon).toFixed(6)]
 					}
 				});
 			}
-		});
 
-		// aggressively gc
-		error = rows = fields = null;
+			// aggressively gc
+			error = rows = fields = null;
 
-		// exit on last index
-		if (i == (k.length - 1)) {
-			if (listErrs.length > 0) {
-				cb(false, listErrs);
+			// exit on last index
+			if (i == (k.length - 1)) {
+				if (listErrs.length > 0) {
+					cb(false, listErrs);
+				}
+				cb(sh);
+			} else {
+				getShape(i+1);
 			}
-			cb(sh);
-		} else {
-			getShape(i+1);
-		}
-
+		});
 	};
 };
 
-function cleanRows (rs) {
-	return rs.map(function (r) {
-		return {
-			seq: r.shape_pt_sequence,
-			loc: [Number(r.shape_pt_lat), Number(r.shape_pt_lon)]
+
+// STEP 3
+function stopDistances (k, s, sh, cb) {
+	var st = {};
+	k.forEach(function (e, i) {
+		if (i%100 == 0) console.log('    ...running stop calcs for shape: ' + e + ' out of ' + (k.length - 1));
+		var stop = s[e],
+				shape = sh[e];
+		shape = calcShapeLens(shape);
+		stop = calcStopLens(stop, shape);
+		st[e] = stop;
+	});
+	cb(st);
+};
+
+function calcShapeLens (shape) {console.log(shape.length, shape);
+	return shape.map(function (a, i) { 
+		if (i > 0) {
+			var b = shape[i-1];
+			a.d = b.d + hvrsn(a.loc, b.loc);
+		} else {
+			a.d = 0;
 		}
+		return a;
+	});
+};
+
+function calcStopLens (stop, shape) {
+	return stop.map(function (a, ai) {
+		var cl = {o: null, a: null, d: null};
+		shape.forEach(function (b, bi) {
+			var d = null,
+					l = null;
+			if (bi == 0) {
+				d = hvrsn(a.loc, b.loc);
+				l = b.loc;
+			} else {
+				var p = shape[bi - 1];
+				d = hvrsn(a.loc, b.loc) + hvrsn(a.loc, p.loc);
+				l = getAllignedStop(p.loc, a.loc, b.loc);
+			}
+			if ((cl.o == null || d < cl.d) && (cl.l !== null)) {
+				cl.o = b;
+				cl.a = l;
+				cl.d = d;
+			}
+		});
+		if (cl.o !== null) {
+			a.d = cl.o.d == 0 ? 0 : Number((hvrsn(a.loc, cl.a) + cl.o.d).toFixed(2));
+		} else {
+			a.d = '\N';
+		}
+		return a;
 	});
 };
 
@@ -233,60 +280,9 @@ function getAllignedStop (ptB, st, ptA) {
 };
 
 
-function calcShapeLens (shape) {
-	return shape.map(function (a, i) { 
-		if (i > 0) {
-			var b = shape[i-1];
-			a.d = b.d + hvrsn(a.loc, b.loc);
-		} else {
-			a.d = 0;
-		}
-		return a;
-	});
-};
-
-function calcStopLens (stop, shape) {
-	return stop.map(function (a, ai) {
-		var cl = {o: null, a: null, d: null};
-		shape.forEach(function (b, bi) {
-			var d = null,
-					l = null;
-			if (bi == 0) {
-				d = hvrsn(a.loc, b.loc);
-				l = b.loc;
-			} else {
-				var p = shape[bi - 1];
-				d = hvrsn(a.loc, b.loc) + hvrsn(a.loc, p.loc);
-				l = getAllignedStop(p.loc, a.loc, b.loc);
-			}
-			if ((cl.o == null || d < cl.d) && (cl.l !== null)) {
-				cl.o = b;
-				cl.a = l;
-				cl.d = d;
-			}
-		});
-		if (cl.o !== null) {
-			a.d = cl.o.d == 0 ? 0 : Number((hvrsn(a.loc, cl.a) + cl.o.d).toFixed(2));
-		} else {
-			a.d = '\N';
-		}
-		return a;
-	});
-};
 
 
-function stopDistances (k, s, sh, cb) {
-	var st = {};
-	k.forEach(function (e) {
-		console.log('Running stop calcs for shp: ' + e)
-		var stop = s[e],
-				shape = sh[e];
-		shape = calcShapeLens(shape);
-		stop = calcStopLens(stop, shape);
-		st[e] = stop;
-	});
-	cb(st);
-};
+
 
 function logOps (msg) {
 	console.log(msg);
