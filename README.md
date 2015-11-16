@@ -6,3 +6,8 @@ It takes in the `allpts.csv` and queries for the shapefile lat/lngs from Nathan'
 ### Run it yourself
 
 Just make sure to `npm install` the `package.json` dependencies.
+
+
+### Resources
+
+Use the supplied `allpts.csv` file if you are interested in curating your own dataset or the one supplied here is outdated. Currently the `allpts.csv` file should be representative of the current system as of November 16, 2015.
