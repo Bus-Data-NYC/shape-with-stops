@@ -55,9 +55,9 @@ connection.connect(function(err){
 							if (err) { return console.log('ERR', err); }
 							console.log('All processes completed in ' + dateDiff() + ' minutes. \r\nNaN count: ' + ns);
 							// var peakStats = {rss: 0, heapTotal: 0, heapUsed: 0};
-							console.log('\r\nPerformance peaks:  \r\nrss: ' + peakStats.rss + 
-																							'\r\nheapTotal: ' + peakStats.heapTotal + 
-																							'\r\nheapUsed: ' + peakStats.heapUsed);
+							console.log('\r\nPerformance peaks:  \r\n  rss: ' + peakStats.rss + 
+																							'\r\n  heapTotal: ' + peakStats.heapTotal + 
+																							'\r\n  heapUsed: ' + peakStats.heapUsed + '\r\n');
 						}); 
 
 					});
@@ -150,7 +150,7 @@ function stopDistances (k, s, sh, cb) {
 	k.forEach(function (e, i) {
 		if (i%150 == 0) {
 			logOps();
-			console.log('    ...running stop calcs for shape: ' + e + ' out of ' + (k.length - 1));
+			console.log('    ...running stop calcs for shape id ' + e + '(index #' + i + ' ) out of ' + (k.length - 1));
 		}
 
 		var shape = calcShapeLens(sh[e]);
@@ -176,24 +176,30 @@ function calcStopLens (stop, shape) {
 	return stop.map(function (a, ai) {
 		var cl = {o: null, a: null, d: null};
 		shape.forEach(function (b, bi) {
-			var d = null,
-					l = null;
+			var d = null;
+
 			if (bi == 0) {
 				d = hvrsn(a.loc, b.loc);
-				l = b.loc;
 			} else {
 				var p = shape[bi - 1];
 				d = hvrsn(a.loc, b.loc) + hvrsn(a.loc, p.loc);
-				l = getAllignedStop(p.loc, a.loc, b.loc);
 			}
+
 			if ((cl.o == null || d < cl.d) && (cl.l !== null)) {
-				cl.o = b;
-				cl.a = l;
 				cl.d = d;
+
+				if (bi == 0) {
+					cl.a = b.loc;
+					cl.o = b;
+				} else {
+					cl.o = shape[bi - 1];
+					cl.a = getAllignedStop(p.loc, a.loc, b.loc);
+				}
 			}
 		});
+
 		if (cl.o !== null) {
-			a.d = cl.o.d == 0 ? 0 : Number((hvrsn(a.loc, cl.a) + cl.o.d).toFixed(2));
+			a.d = (cl.o.d == 0 ? 0 : Number((hvrsn(a.loc, cl.a) + cl.o.d).toFixed(2)));
 		} else {
 			a.d = '\N';
 		}
