@@ -1,5 +1,5 @@
 var csv = require('fast-csv');
-var fs = require('fs')
+var fs = require('fs');
 
 // global variables for performance monitoring
 var peakStats = {rss: 0, heapTotal: 0, heapUsed: 0};
@@ -20,7 +20,7 @@ connection.connect(function(err){
 
 		// STEP 1
 		loadCSV('allpts.csv', function (s) {
-			var k = Object.keys(s); //k = k.slice(0, 10);
+			var k = Object.keys(s); //k = k.slice(0, 100);
 			logOps('Loaded all stops (' + k.length + ' total); running shape queries.');
 
 			// STEP 2
@@ -31,7 +31,7 @@ connection.connect(function(err){
 						console.log(e.id + ': ' + e.error);
 					});
 
-				} else {console.log('sss', Object.keys(sh));
+				} else {
 					logOps('Loaded all shapes (' + Object.keys(sh).length + ' total); running stop calculations.');
 
 					// STEP 3
@@ -52,12 +52,12 @@ connection.connect(function(err){
 						fs.writeFile("out.csv", out, function (err) {
 							connection.end();
 
-						  if (err) { return console.log('ERR', err); }
-						  console.log('File was saved! NaN count: ' + ns);
-						  // var peakStats = {rss: 0, heapTotal: 0, heapUsed: 0};
-						  console.log('Performance peaks:  \r\nrss: ' + peakStats.rss + 
-						  																'\r\nheapTotal: ' + peakStats.heapTotal + 
-						  																'\r\nheapUsed: ' + peakStats.heapUsed);
+							if (err) { return console.log('ERR', err); }
+							console.log('All processes completed in ' + dateDiff() + ' minutes. \r\nNaN count: ' + ns);
+							// var peakStats = {rss: 0, heapTotal: 0, heapUsed: 0};
+							console.log('\r\nPerformance peaks:  \r\nrss: ' + peakStats.rss + 
+																							'\r\nheapTotal: ' + peakStats.heapTotal + 
+																							'\r\nheapUsed: ' + peakStats.heapUsed);
 						}); 
 
 					});
@@ -153,10 +153,8 @@ function stopDistances (k, s, sh, cb) {
 			console.log('    ...running stop calcs for shape: ' + e + ' out of ' + (k.length - 1));
 		}
 
-		var stop = s[e],
-				shape = sh[e];
-		shape = calcShapeLens(shape);
-		stop = calcStopLens(stop, shape);
+		var shape = calcShapeLens(sh[e]);
+		var stop = calcStopLens(s[e], shape);
 		st[e] = stop;
 	});
 	cb(st);
@@ -204,11 +202,6 @@ function calcStopLens (stop, shape) {
 };
 
 function hvrsn (ll1, ll2) {
-	function deg2rad (d) {
-		r = d * (Math.PI/180);
-		return r;
-	};
-
 	var dlat = ll2[0] - ll1[0],
 			dlon = ll2[1] - ll1[1],
 			erad = 6369087,
@@ -224,6 +217,10 @@ function hvrsn (ll1, ll2) {
 			c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)),
 			dist =  erad * c;
 	return Number(dist.toFixed(6));
+};
+
+function deg2rad (d) {
+	return (d * (Math.PI/180));
 };
 
 function getAllignedStop (ptB, st, ptA) {
@@ -297,7 +294,7 @@ function getAllignedStop (ptB, st, ptA) {
 
 
 
-
+// UTILITIES //
 
 function logOps (msg) {
 	if (msg !== undefined) console.log(msg + '\r\n\r\n');
@@ -327,6 +324,16 @@ function logOps (msg) {
 		var c = changes.join('\r\n      ');
 		console.log('    Current resource changes: \r\n      ' + c + '\r\n');
 	}
+};
+
+var startTime = new Date();
+function dateDiff (datepart) {
+	if (datepart == undefined) datepart = 'm';
+	else datepart = datepart.toLowerCase();
+
+	var endTime = new Date();
+	var diff = endTime - startTime;
+	return (diff/60000).toFixed(2);
 };
 
 
