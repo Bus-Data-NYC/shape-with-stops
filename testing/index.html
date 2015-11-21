@@ -4,15 +4,11 @@
     <title>Length measure testing</title>
 
   <!-- css libraries -->
-  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
   <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7.5/leaflet.css">
   
   <!-- js toolset -->
   <script src="http://cdn.leafletjs.com/leaflet-0.7.5/leaflet.js"></script>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
-
-  <!-- leaflet toolkit -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/0.4.0/leaflet.markercluster-src.js"></script>
   
   </head>
 
@@ -98,12 +94,13 @@
       
       <h2>
         Length Analysis
-        <br>
         <small>
-          Stop Seq #10: <span id="seq10">None</span>m
+          <i>Min Dist Calcs</i><br>
+        <small>
+          Stop Seq #10: <span style="font-weight:bold" id="seq10">None</span> <i>(Current: <span id="CURRseq10">None</span>)</i>
           <br>
-          Stop Seq #11: <span id="seq11">- </span>m
-        </small>
+          Stop Seq #11: <span style="font-weight:bold" id="seq11">None</span> <i>(Current: <span id="CURRseq11">- </span>)</i>
+        </small></small>
       </h2>
 
 
@@ -128,7 +125,7 @@
 
     map = new L.map('map', {
       center: new L.LatLng(40.82151, -73.82177),
-      zoom: 19,
+      zoom: 18,
       layers: []
     });
     L.tileLayer('http://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png').addTo(map);
@@ -164,19 +161,43 @@
       data.shift();
       data = data.map(function (row) {
         row = row.split(',');
-        return [Number(row[1]), Number(row[0])];
+        return {"loc": {"lat": Number(row[0]), "lon": Number(row[1])}};
       });
+
       data = data.filter(function (row, i) {
-        if (isNaN(row[0]) || isNaN(row[1])) {
+        if (isNaN(row.loc.lat) || isNaN(row.loc.lon)) {
           return false;
         } else {
-          L.circle([row[1], row[0]], 2, {color: "red", weight: 1}).bindPopup("Circle Index: " + String(i)).addTo(map);
           return true;
         }
       })
+
+      // calc the dev length
+      accumLen = 0;
+      newData = [];
+      geojson_latlons = [];
+      data.forEach(function (ea, i) {
+        var d;
+        if (i == 0) {
+          d = 0;
+        } else {
+          var prev = data[i-1];
+          d = hvrsn([prev.loc.lat, prev.loc.lon], [ea.loc.lat, ea.loc.lon]);
+        }
+        accumLen = (Number(accumLen) + Number(d)).toFixed(2);
+        ea.d = accumLen;
+        newData.push(ea);
+        geojson_latlons.push([ea.loc.lon, ea.loc.lat]);
+      });
+
+      newData.forEach(function (ea, i) {
+        L.circle([ea.loc.lat, ea.loc.lon], 2, {color: "red", weight: 1}).bindPopup("Circle Index: " + String(i) + "<br>Cumulative Dist: " + ea.d).addTo(map);
+      });
+
+
       var geojson = {
         "type": "LineString",
-        "coordinates": data
+        "coordinates": geojson_latlons
       };
       return geojson;
     };
@@ -185,7 +206,7 @@
       issuePoints.forEach(function (issue, issue_i) {
         issPt = [issue._latlng.lat, issue._latlng.lng];
         route.coordinates.forEach(function (pt, i) {
-          if (i > 44 && i < 53) {
+          if (i > 40 && i < 60) {
             var geojson = {
               "type": "LineString",
               "coordinates": [[issPt[1], issPt[0]], pt]
@@ -202,11 +223,13 @@
     };
 
     function animateLines () {
+      var minDist = {"10": null, "11": null};
+      var chosenDrawn = {"10": {a: null, b: null}, "11": {a: null, b: null}};
       var currDrawn = {a: null, b: null};
+
       draw("10");
 
       function draw (mrkr) {
-        console.log(mrkr, drawLines[mrkr])
         var a = drawLines[mrkr].shift();
         var b = drawLines[mrkr].shift();
         if (currDrawn.a !== null && currDrawn.b !== null) {
@@ -215,9 +238,11 @@
         }
         if (b == undefined) {
           if (mrkr == "10") {
+            $("#CURRseq" + mrkr)[0].innerText = "- ";
             draw("11")
           } else {
             // we are done
+            $("#CURRseq" + mrkr)[0].innerText = "- ";
             console.log("Done")
           }
         } else {
@@ -239,11 +264,31 @@
           var dist = distA + distB;
 
 
-          $("#seq" + mrkr)[0].innerText = dist.toFixed(2);
+          $("#CURRseq" + mrkr)[0].innerText = dist.toFixed(2) + " m";
 
-          // update global vars w/ latest
-          currDrawn.a = a;
-          currDrawn.b = b;
+          if (minDist[mrkr] == null || Number(minDist[mrkr]) > Number(dist)) {
+            minDist[mrkr] = Number(dist);
+            $("#seq" + mrkr)[0].innerText = dist.toFixed(2) + " m";
+
+            if (chosenDrawn[mrkr]["a"] !== null) {
+              map.removeLayer(chosenDrawn[mrkr]["a"]);
+            }
+            if (chosenDrawn[mrkr]["b"] !== null) {
+              map.removeLayer(chosenDrawn[mrkr]["b"]);
+            }
+
+            a.setStyle({color: "green", weight: 3});
+            chosenDrawn[mrkr]["a"] = a;
+            b.setStyle({color: "green", weight: 3});
+            chosenDrawn[mrkr]["b"] = b;
+
+            currDrawn.a = null;
+            currDrawn.b = null;
+          } else {
+            // update global vars w/ latest
+            currDrawn.a = a;
+            currDrawn.b = b;
+          }
 
           setTimeout(function () { draw(mrkr); }, 2000);
         }
@@ -276,6 +321,8 @@
 
 
   </script>
+
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
 </html>
 
 
