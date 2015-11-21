@@ -1,0 +1,234 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <title>Length measure testing</title>
+
+  <!-- css libraries -->
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+  <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7.5/leaflet.css">
+  
+  <!-- js toolset -->
+  <script src="http://cdn.leafletjs.com/leaflet-0.7.5/leaflet.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+
+  <!-- leaflet toolkit -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/0.4.0/leaflet.markercluster-src.js"></script>
+  
+  </head>
+
+  <style>
+    .map {
+      width: 100%;
+      height: 600px;
+    }
+    .btn, .input-group-addon, .form-control {
+      border-radius: 0px;
+    }
+    .leaflet-cluster-anim .leaflet-marker-icon, .leaflet-cluster-anim .leaflet-marker-shadow {
+      -webkit-transition: -webkit-transform 0.3s ease-out, opacity 0.3s ease-in;
+      -moz-transition: -moz-transform 0.3s ease-out, opacity 0.3s ease-in;
+      -o-transition: -o-transform 0.3s ease-out, opacity 0.3s ease-in;
+      transition: transform 0.3s ease-out, opacity 0.3s ease-in;
+    }
+    .marker-cluster-small {
+      background-color: rgba(181, 226, 140, 0.6);
+    }
+    .marker-cluster-small div {
+      background-color: rgba(110, 204, 57, 0.6);
+    }
+
+    .marker-cluster-medium {
+      background-color: rgba(241, 211, 87, 0.6);
+    }
+    .marker-cluster-medium div {
+      background-color: rgba(240, 194, 12, 0.6);
+    }
+
+    .marker-cluster-large {
+      background-color: rgba(253, 156, 115, 0.6);
+    }
+    .marker-cluster-large div {
+      background-color: rgba(241, 128, 23, 0.6);
+    }
+
+      /* IE 6-8 fallback colors */
+    .leaflet-oldie .marker-cluster-small {
+      background-color: rgb(181, 226, 140);
+    }
+    .leaflet-oldie .marker-cluster-small div {
+      background-color: rgb(110, 204, 57);
+    }
+
+    .leaflet-oldie .marker-cluster-medium {
+      background-color: rgb(241, 211, 87);
+    }
+    .leaflet-oldie .marker-cluster-medium div {
+      background-color: rgb(240, 194, 12);
+    }
+
+    .leaflet-oldie .marker-cluster-large {
+      background-color: rgb(253, 156, 115);
+    }
+    .leaflet-oldie .marker-cluster-large div {
+      background-color: rgb(241, 128, 23);
+    }
+
+    .marker-cluster {
+      background-clip: padding-box;
+      border-radius: 20px;
+    }
+    .marker-cluster div {
+      width: 30px;
+      height: 30px;
+      margin-left: 5px;
+      margin-top: 5px;
+
+      text-align: center;
+      border-radius: 15px;
+      font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif;
+    }
+    .marker-cluster span {
+      line-height: 30px;
+    }
+
+  </style>
+  
+  <body>
+    <div class="container">
+      
+      <h2>
+        Length Analysis
+        <br>
+        Stop Seq #10: <span></span>
+        <br>
+        Stop Seq #11: <span></span>
+      </h2>
+
+
+      <div class="row">
+        <div class="col-xs-12">
+          <div class="map" id="map">
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </body>
+
+  <script type="text/javascript">
+
+    // global for stops
+    var map;
+    var markers;
+    var route;
+    var stops;
+    var drawLines = [];
+
+    map = new L.map('map', {
+      center: new L.LatLng(40.82151, -73.82177),
+      zoom: 19,
+      layers: []
+    });
+    L.tileLayer('http://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png').addTo(map);
+
+    $.get('exampleShapeWithBackwardsResults.csv')
+    .done(function (data) {
+      route = parseCSV(data);
+    }).complete(function () {
+      if (route !== undefined) {
+        L.geoJson(route, {style: {weight: 2}}).addTo(map);
+
+        $.get('issueTripExample.json')
+        .done(function (data) {
+          var issuePoints = [];
+          data.forEach(function (stop) {
+            var marker = L.marker(stop.loc).bindPopup("Seq. #: " + String(stop.seq) + " \nDist: " + String(stop.d + " meters")).addTo(map);
+
+            if (stop.seq == "10" || stop.seq == "11") {
+              issuePoints.push(marker)
+            };
+          });
+          walkThroughAlgorithm(issuePoints);
+        });
+
+      }
+    });
+
+
+    
+    function parseCSV(data) {
+      data = data.split('\n');
+      data.shift();
+      data = data.map(function (row) {
+        row = row.split(',');
+        return [Number(row[1]), Number(row[0])];
+      });
+      data = data.filter(function (row, i) {
+        if (isNaN(row[0]) || isNaN(row[1])) {
+          return false;
+        } else {
+          L.circle([row[1], row[0]], 2, {color: "red", weight: 1}).bindPopup("Circle Index: " + String(i)).addTo(map);
+          return true;
+        }
+      })
+      var geojson = {
+        "type": "LineString",
+        "coordinates": data
+      };
+      return geojson;
+    };
+
+    function walkThroughAlgorithm (issuePoints) {
+      issuePoints.forEach(function (issue) {
+        issue = [issue._latlng.lat, issue._latlng.lng];
+        route.coordinates.forEach(function (pt, i) {
+          if (i > 44 && i < 53) {
+            var geojson = {
+              "type": "LineString",
+              "coordinates": [[issue[1], issue[0]], pt]
+            };
+            var style = {
+              "color": "red",
+              "weight": 1,
+            };
+            drawLines.push(L.geoJson(geojson, {style: style}));
+          }
+        });
+      });
+      animateLines();
+    };
+
+    function animateLines () {
+      var currDrawn = {a: null, b: null};
+      draw();
+
+      function draw () {
+        var a = drawLines.shift();
+        var b = drawLines.shift();
+        if (b == undefined) {
+          // we are done
+        } else {
+          if (currDrawn.a !== null && currDrawn.b !== null) {
+            map.removeLayer(currDrawn.a);
+            map.removeLayer(currDrawn.b);
+          }
+          a.addTo(map);
+          b.addTo(map);
+
+          // update global vars w/ latest
+          currDrawn.a = a;
+          currDrawn.b = b;
+        }
+        setTimeout(draw, 2000);
+      }
+
+    }
+    
+
+
+  </script>
+</html>
+
+
+
+

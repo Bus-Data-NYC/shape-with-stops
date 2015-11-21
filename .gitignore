@@ -1,3 +1,6 @@
 credentials.js
+credentials.json
 node_modules/
 venv
+vnv
+MYENV

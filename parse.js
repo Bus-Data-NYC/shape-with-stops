@@ -1,3 +1,4 @@
+var sqlite3 = require('sqlite3').verbose();
 var csv = require('fast-csv');
 var fs = require('fs');
 
@@ -5,7 +6,7 @@ var fs = require('fs');
 var peakStats = {rss: 0, heapTotal: 0, heapUsed: 0};
 
 // sql connection
-var mysql      = require('mysql');
+var mysql = require('mysql');
 var credentials = require('./credentials.js');
 
 var connection = mysql.createConnection({
@@ -74,31 +75,65 @@ connection.connect(function(err){
 
 // STEP 1
 function loadCSV (loc, cb) {
-	// reassembles csv as large json, each obj. key is 
+	// reassembles csv as large json, each object key is 
 	var s = {};
+
 	csv
 		.fromPath(loc)
 		.on("data", function (data) {
-			if (data.length == 4 && data[0] !== 'shape_index') {
-				var shape_index = data[0],
-						stop_id = data[1],
-						stop_lat = data[2],
-						stop_lon = data[3];
+			
+			if (Math.random() < 0.0001) logOps();
 
-				if (s[shape_index] == undefined)
-					s[shape_index] = [];
-
-				s[shape_index].push({
-					id: stop_id,
-					loc: [Number(stop_lat), Number(stop_lon)]
+			if (data.length == 6) {
+				var ok = true;
+				data.forEach(function (ea) {
+					if (isNaN(ea)) ok = false;
 				});
+
+				if (ok) {
+					// col struct: [shape_index, stop_sequence, st.trip_index, st.stop_id, stop_lat, stop_lon]
+					var shape_index = data[0],
+							stop_sequence = data[1],
+							trip_index = data[2],
+							stop_id = data[3],
+							stop_lat = data[4],
+							stop_lon = data[5];
+
+					if (s[shape_index] == undefined)
+						s[shape_index] = {};
+
+					if (s[shape_index][trip_index] == undefined)
+						s[shape_index] = [];
+
+					s[shape_index].push({
+						id: stop_id,
+						seq: stop_sequence,
+						loc: [Number(stop_lat), Number(stop_lon)]
+					});
+				}
 			}
 		})
 		.on("end", function () {
+			console.log('Count: ' + ct);
+
+			Object.keys(s).forEach(function (shape) {
+				Object.keys(s[shape]).forEach(function (trip) {
+					s[shape][trip] = s[shape][trip].sort(compare);
+				});
+			});
+			s = s.sort(compare);
 			cb(s);
 		});
 };
 
+function compare (a, b) {
+	a = Number(a.seq);
+	b = Number(b.seq);
+
+  if (a < b) return -1;
+  else if (a > b) return 1;
+  else return 0;
+}
 
 
 // STEP 2
@@ -301,28 +336,28 @@ function getAllignedStop (ptB, st, ptA) {
 
 
 // UTILITIES //
-
 function logOps (msg) {
 	if (msg !== undefined) console.log(msg + '\r\n\r\n');
 
 	var currMem = process.memoryUsage();
+	var pct = null;
 	var changes = [];
 
 	if (peakStats.rss < currMem.rss) {
-		var pct = (((currMem.rss/peakStats.rss) - 1) * 100).toFixed(1).toString() + '%';
-		changes.push('rss increased ' + pct + ' from ' + peakStats.rss + ' to ' + currMem.rss + '.');
+		pct = (((currMem.rss/peakStats.rss) - 1) * 100).toFixed(1).toString() + '%';
+		changes.push('rss increased ' + pct + ' from ' + neatNum(peakStats.rss) + ' to ' + neatNum(currMem.rss) + ' MB.');
 		peakStats.rss = currMem.rss;
 	}
 
 	if (peakStats.heapTotal < currMem.heapTotal) {
-		var pct = (((currMem.heapTotal/peakStats.heapTotal) - 1) * 100).toFixed(1).toString() + '%';
-		changes.push('heapTotal increased ' + pct + ' from ' + peakStats.heapTotal + ' to ' + currMem.heapTotal + '.');
+		pct = (((currMem.heapTotal/peakStats.heapTotal) - 1) * 100).toFixed(1).toString() + '%';
+		changes.push('heapTotal increased ' + pct + ' from ' + neatNum(peakStats.heapTotal) + ' to ' + neatNum(currMem.heapTotal) + ' MB.');
 		peakStats.heapTotal = currMem.heapTotal;
 	}
 
 	if (peakStats.heapUsed < currMem.heapUsed) {
-		var pct = (((currMem.heapUsed/peakStats.heapUsed) - 1) * 100).toFixed(1).toString() + '%';
-		changes.push('heapUsed increased ' + pct + ' from ' + peakStats.heapUsed + ' to ' + currMem.heapUsed + '.');
+		pct = (((currMem.heapUsed/peakStats.heapUsed) - 1) * 100).toFixed(1).toString() + '%';
+		changes.push('heapUsed increased ' + pct + ' from ' + neatNum(peakStats.heapUsed) + ' to ' + neatNum(currMem.heapUsed) + ' MB.');
 		peakStats.heapUsed = currMem.heapUsed;
 	}
 
@@ -331,6 +366,13 @@ function logOps (msg) {
 		console.log('    Current resource changes: \r\n      ' + c + '\r\n');
 	}
 };
+
+function neatNum (x) {
+	x = (x/1000000).toFixed(2);
+  var parts = x.toString().split(".");
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return parts.join(".");
+}
 
 var startTime = new Date();
 function dateDiff (datepart) {
