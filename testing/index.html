@@ -99,9 +99,11 @@
       <h2>
         Length Analysis
         <br>
-        Stop Seq #10: <span></span>
-        <br>
-        Stop Seq #11: <span></span>
+        <small>
+          Stop Seq #10: <span id="seq10">None</span>m
+          <br>
+          Stop Seq #11: <span id="seq11">- </span>m
+        </small>
       </h2>
 
 
@@ -122,7 +124,7 @@
     var markers;
     var route;
     var stops;
-    var drawLines = [];
+    var drawLines = {"10": [], "11": []};
 
     map = new L.map('map', {
       center: new L.LatLng(40.82151, -73.82177),
@@ -145,6 +147,7 @@
             var marker = L.marker(stop.loc).bindPopup("Seq. #: " + String(stop.seq) + " \nDist: " + String(stop.d + " meters")).addTo(map);
 
             if (stop.seq == "10" || stop.seq == "11") {
+              marker.properties = stop.seq;
               issuePoints.push(marker)
             };
           });
@@ -179,19 +182,19 @@
     };
 
     function walkThroughAlgorithm (issuePoints) {
-      issuePoints.forEach(function (issue) {
-        issue = [issue._latlng.lat, issue._latlng.lng];
+      issuePoints.forEach(function (issue, issue_i) {
+        issPt = [issue._latlng.lat, issue._latlng.lng];
         route.coordinates.forEach(function (pt, i) {
           if (i > 44 && i < 53) {
             var geojson = {
               "type": "LineString",
-              "coordinates": [[issue[1], issue[0]], pt]
+              "coordinates": [[issPt[1], issPt[0]], pt]
             };
             var style = {
               "color": "red",
               "weight": 1,
             };
-            drawLines.push(L.geoJson(geojson, {style: style}));
+            drawLines[issue.properties].push(L.geoJson(geojson, {style: style}));
           }
         });
       });
@@ -200,30 +203,76 @@
 
     function animateLines () {
       var currDrawn = {a: null, b: null};
-      draw();
+      draw("10");
 
-      function draw () {
-        var a = drawLines.shift();
-        var b = drawLines.shift();
+      function draw (mrkr) {
+        console.log(mrkr, drawLines[mrkr])
+        var a = drawLines[mrkr].shift();
+        var b = drawLines[mrkr].shift();
+        if (currDrawn.a !== null && currDrawn.b !== null) {
+          map.removeLayer(currDrawn.a);
+          map.removeLayer(currDrawn.b);
+        }
         if (b == undefined) {
-          // we are done
-        } else {
-          if (currDrawn.a !== null && currDrawn.b !== null) {
-            map.removeLayer(currDrawn.a);
-            map.removeLayer(currDrawn.b);
+          if (mrkr == "10") {
+            draw("11")
+          } else {
+            // we are done
+            console.log("Done")
           }
+        } else {
+          // first pt is always the Issue pt
+          a_ll = null;
+          a.eachLayer(function (l) {
+            a_ll = l._latlngs;
+          });
           a.addTo(map);
+
+          b_ll = null;
+          b.eachLayer(function (l) {
+            b_ll = l._latlngs;
+          });
           b.addTo(map);
+
+          var distA = hvrsn([a_ll[0].lat, a_ll[0].lng], [a_ll[1].lat, a_ll[1].lng]);
+          var distB = hvrsn([b_ll[0].lat, b_ll[0].lng], [b_ll[1].lat, b_ll[1].lng]);
+          var dist = distA + distB;
+
+
+          $("#seq" + mrkr)[0].innerText = dist.toFixed(2);
 
           // update global vars w/ latest
           currDrawn.a = a;
           currDrawn.b = b;
+
+          setTimeout(function () { draw(mrkr); }, 2000);
         }
-        setTimeout(draw, 2000);
+        
       }
 
-    }
+    };
     
+    function hvrsn (ll1, ll2) {
+      var dlat = ll2[0] - ll1[0],
+          dlon = ll2[1] - ll1[1],
+          erad = 6369087,
+          alpha = dlat/2,
+          beta = dlon/2,
+
+          a = Math.sin(deg2rad(alpha)) * 
+              Math.sin(deg2rad(alpha)) + 
+              Math.cos(deg2rad(ll1[0])) * 
+              Math.cos(deg2rad(ll2[0])) * 
+              Math.sin(deg2rad(beta)) * 
+              Math.sin(deg2rad(beta)),
+          c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)),
+          dist =  erad * c;
+      return Number(dist.toFixed(6));
+    };
+
+    function deg2rad (d) {
+      return (d * (Math.PI/180));
+    };
 
 
   </script>
