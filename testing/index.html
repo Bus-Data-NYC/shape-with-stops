@@ -8,8 +8,47 @@
   
   <body>
 
+
+    <div class="panel panel-default" id="info_modal">
+      <div class="panel-body">
+          <span onclick="toggleModal()">
+            <i>FINAL OUTPUT </i> 
+            <span class="pull-right">[X]</span>
+          </span>
+
+          <div class="col-xs-12 minComp">
+            <h5>
+              Distances using dumb distance measure:
+            </h5>
+            <p>
+              Stop sequence 10: <span id="final_dist_10"> - </span>
+            </p>
+            <p>
+              Stop sequence 11: <span id="final_dist_11"> - </span>
+            </p>
+
+            <h5>
+              ... and using "smart" distance measure:
+              <br><small>
+                (tries to estimate where on the route line the stop is 
+                <br>
+                so extraneous distance from stop to route is removed)
+              </small>
+            </h5>
+            <p>
+              Stop sequence 10: <span id="final_smartdist_10"> - </span>
+            </p>
+            <p>
+              Stop sequence 11: <span id="final_smartdist_11"> - </span>
+            </p>
+          </div>
+
+      </div>
+    </div>
+
     <h2 class="container top_info">
       Length Analysis
+      <br>
       <small>
         <i>Min Dist Calcs</i>
         <button onclick="globalRun()">(re)RUN OPS</button>
@@ -23,45 +62,6 @@
 
 
     <div class="map" id="map">
-    </div>
-
-
-
-    <div class="panel panel-default" id="info_modal">
-      <div class="panel-body">
-
-          <div class="col-xs-12">
-            <h5>
-              Distances using dumb distance measure:
-            </h5>
-            <p>
-              Stop sequence 10: <span id="final_dist_10"> - </span>
-            </p>
-            <p>
-              Stop sequence 11: <span id="final_dist_11"> - </span>
-            </p>
-          </div>
-
-          <div class="row">
-            <div class="col-xs-12">
-              <h5>
-                ... and using "smart" distance measure:
-                <br><small>
-                  (tries to estimate where on the route line the stop is 
-                  <br>
-                  so extraneous distance from stop to route is removed)
-                </small>
-              </h5>
-              <p>
-                Stop sequence 10: <span id="final_smartdist_10"> - </span>
-              </p>
-              <p>
-                Stop sequence 11: <span id="final_smartdist_11"> - </span>
-              </p>
-            </div>
-          </div>
-
-      </div>
     </div>
 
   </body>
@@ -410,6 +410,10 @@
       }
     };
 
+    function toggleModal () {
+      $(".minComp").toggle()
+    };
+
 
   </script>
 
@@ -454,7 +458,7 @@
     window.onresize = function () { place_info_box() };
 
     function place_info_box () {
-      if (window.innerWidth < 925)
+      if (window.innerWidth < 200)
         $("#info_modal").removeClass("stat_base")
       else
         $("#info_modal").addClass("stat_base")
