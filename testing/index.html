@@ -2,301 +2,302 @@
 <html>
   <head>
     <title>Length measure testing</title>
-
-  <!-- css libraries -->
-  <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7.5/leaflet.css">
-  
-  <!-- js toolset -->
-  <script src="http://cdn.leafletjs.com/leaflet-0.7.5/leaflet.js"></script>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
   
   </head>
-
-  <style>
-    .map {
-      width: 100%;
-      height: 600px;
-    }
-    .btn, .input-group-addon, .form-control {
-      border-radius: 0px;
-    }
-    .leaflet-cluster-anim .leaflet-marker-icon, .leaflet-cluster-anim .leaflet-marker-shadow {
-      -webkit-transition: -webkit-transform 0.3s ease-out, opacity 0.3s ease-in;
-      -moz-transition: -moz-transform 0.3s ease-out, opacity 0.3s ease-in;
-      -o-transition: -o-transform 0.3s ease-out, opacity 0.3s ease-in;
-      transition: transform 0.3s ease-out, opacity 0.3s ease-in;
-    }
-    .marker-cluster-small {
-      background-color: rgba(181, 226, 140, 0.6);
-    }
-    .marker-cluster-small div {
-      background-color: rgba(110, 204, 57, 0.6);
-    }
-
-    .marker-cluster-medium {
-      background-color: rgba(241, 211, 87, 0.6);
-    }
-    .marker-cluster-medium div {
-      background-color: rgba(240, 194, 12, 0.6);
-    }
-
-    .marker-cluster-large {
-      background-color: rgba(253, 156, 115, 0.6);
-    }
-    .marker-cluster-large div {
-      background-color: rgba(241, 128, 23, 0.6);
-    }
-
-      /* IE 6-8 fallback colors */
-    .leaflet-oldie .marker-cluster-small {
-      background-color: rgb(181, 226, 140);
-    }
-    .leaflet-oldie .marker-cluster-small div {
-      background-color: rgb(110, 204, 57);
-    }
-
-    .leaflet-oldie .marker-cluster-medium {
-      background-color: rgb(241, 211, 87);
-    }
-    .leaflet-oldie .marker-cluster-medium div {
-      background-color: rgb(240, 194, 12);
-    }
-
-    .leaflet-oldie .marker-cluster-large {
-      background-color: rgb(253, 156, 115);
-    }
-    .leaflet-oldie .marker-cluster-large div {
-      background-color: rgb(241, 128, 23);
-    }
-
-    .marker-cluster {
-      background-clip: padding-box;
-      border-radius: 20px;
-    }
-    .marker-cluster div {
-      width: 30px;
-      height: 30px;
-      margin-left: 5px;
-      margin-top: 5px;
-
-      text-align: center;
-      border-radius: 15px;
-      font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif;
-    }
-    .marker-cluster span {
-      line-height: 30px;
-    }
-
-  </style>
   
   <body>
-    <div class="container">
-      
-      <h2>
-        Length Analysis
-        <small>
-          <i>Min Dist Calcs</i><br>
-        <small>
-          Stop Seq #10: <span style="font-weight:bold" id="seq10">None</span> <i>(Current: <span id="CURRseq10">None</span>)</i>
-          <br>
-          Stop Seq #11: <span style="font-weight:bold" id="seq11">None</span> <i>(Current: <span id="CURRseq11">- </span>)</i>
-        </small></small>
-      </h2>
+
+    <h2 class="container top_info">
+      Length Analysis
+      <small>
+        <i>Min Dist Calcs</i>
+        <button onclick="globalRun()">(re)RUN OPS</button>
+        <br>
+      <small>
+        Stop Seq #10: <span style="font-weight:bold" id="seq10">None</span> <i>(Current: <span id="CURRseq10">None</span>)</i>
+        <br>
+        Stop Seq #11: <span style="font-weight:bold" id="seq11">None</span> <i>(Current: <span id="CURRseq11">- </span>)</i>
+      </small></small>
+    </h2>
 
 
-      <div class="row">
-        <div class="col-xs-12">
-          <div class="map" id="map">
-          </div>
-        </div>
-      </div>
-
+    <div class="map" id="map">
     </div>
+
+
+
+    <div class="panel panel-default" id="info_modal">
+      <div class="panel-body">
+
+          <div class="col-xs-12">
+            <h5>
+              Distances using dumb distance measure:
+            </h5>
+            <p>
+              Stop sequence 10: <span id="final_dist_10"> - </span>
+            </p>
+            <p>
+              Stop sequence 11: <span id="final_dist_11"> - </span>
+            </p>
+          </div>
+
+          <div class="row">
+            <div class="col-xs-12">
+              <h5>
+                ... and using "smart" distance measure:
+                <br><small>
+                  (tries to estimate where on the route line the stop is 
+                  <br>
+                  so extraneous distance from stop to route is removed)
+                </small>
+              </h5>
+              <p>
+                Stop sequence 10: <span id="final_smartdist_10"> - </span>
+              </p>
+              <p>
+                Stop sequence 11: <span id="final_smartdist_11"> - </span>
+              </p>
+            </div>
+          </div>
+
+      </div>
+    </div>
+
   </body>
 
   <script type="text/javascript">
 
     // global for stops
     var map;
-    var markers;
+    var markers = {};
     var route;
-    var stops;
+    var crumbs = [];
     var drawLines = {"10": [], "11": []};
 
-    map = new L.map('map', {
-      center: new L.LatLng(40.82151, -73.82177),
-      zoom: 18,
-      layers: []
-    });
-    L.tileLayer('http://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png').addTo(map);
 
-    $.get('exampleShapeWithBackwardsResults.csv')
-    .done(function (data) {
-      route = parseCSV(data);
-    }).complete(function () {
-      if (route !== undefined) {
-        L.geoJson(route, {style: {weight: 2}}).addTo(map);
+    function globalRun () {
+      if (map && map.remove !== undefined)
+        map.remove()
 
-        $.get('issueTripExample.json')
-        .done(function (data) {
-          var issuePoints = [];
-          data.forEach(function (stop) {
-            var marker = L.marker(stop.loc).bindPopup("Seq. #: " + String(stop.seq) + " \nDist: " + String(stop.d + " meters")).addTo(map);
+      // reset everything
+      map = null;
+      markers = {};
+      route = null;
+      crumbs = [];
+      drawLines = {"10": [], "11": []};
 
-            if (stop.seq == "10" || stop.seq == "11") {
-              marker.properties = stop.seq;
-              issuePoints.push(marker)
-            };
+      map = new L.map('map', {
+        center: new L.LatLng(40.82151, -73.82177),
+        zoom: 17,
+        layers: [],
+        zoomControl: false
+      });
+      map.scrollWheelZoom.disable();
+      new L.Control.Zoom({ position: 'bottomleft' }).addTo(map);
+      L.tileLayer('http://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png').addTo(map);
+
+      $.get('exampleShapeWithBackwardsResults.csv')
+      .done(function (data) {
+        route = parseCSV(data);
+      }).complete(function () {
+        if (route !== undefined) {
+          L.geoJson(route, {style: {weight: 2}}).addTo(map);
+
+          $.get('issueTripExample.json')
+          .done(function (data) {
+            var issuePoints = [];
+            data.forEach(function (stop) {
+              var marker = L.marker(stop.loc).bindPopup("Seq. #: " + String(stop.seq) + " \nDist: " + String(stop.d + " meters"));
+              markers[String(stop.seq)] = marker;
+              marker.addTo(map);
+
+              if (stop.seq == "10" || stop.seq == "11") {
+                marker.properties = stop.seq;
+                issuePoints.push(marker)
+              };
+            });
+            walkThroughAlgorithm(issuePoints);
           });
-          walkThroughAlgorithm(issuePoints);
+
+        }
+      });
+
+
+      
+      function parseCSV(data) {
+        data = data.split('\n');
+        data.shift();
+        data = data.map(function (row) {
+          row = row.split(',');
+          return {"loc": {"lat": Number(row[0]), "lon": Number(row[1])}};
         });
 
-      }
-    });
+        data = data.filter(function (row, i) {
+          if (isNaN(row.loc.lat) || isNaN(row.loc.lon)) {
+            return false;
+          } else {
+            return true;
+          }
+        })
+
+        // calc the dev length
+        accumLen = 0;
+        newData = [];
+        geojson_latlons = [];
+        data.forEach(function (ea, i) {
+          var d;
+          if (i == 0) {
+            d = 0;
+          } else {
+            var prev = data[i-1];
+            d = hvrsn([prev.loc.lat, prev.loc.lon], [ea.loc.lat, ea.loc.lon]);
+          }
+          accumLen = (Number(accumLen) + Number(d)).toFixed(2);
+          ea.d = Number(accumLen);
+          newData.push(ea);
+          geojson_latlons.push([ea.loc.lon, ea.loc.lat]);
+        });
+
+        newData.forEach(function (ea, i) {
+          var st = L.circle([ea.loc.lat, ea.loc.lon], 2, {color: "red", weight: 1}).bindPopup("Circle Index: " + String(i) + "<br>Cumulative Dist: " + ea.d);
+          st.properties = ea;
+          crumbs.push(st)
+          st.addTo(map);
+        });
 
 
-    
-    function parseCSV(data) {
-      data = data.split('\n');
-      data.shift();
-      data = data.map(function (row) {
-        row = row.split(',');
-        return {"loc": {"lat": Number(row[0]), "lon": Number(row[1])}};
-      });
-
-      data = data.filter(function (row, i) {
-        if (isNaN(row.loc.lat) || isNaN(row.loc.lon)) {
-          return false;
-        } else {
-          return true;
-        }
-      })
-
-      // calc the dev length
-      accumLen = 0;
-      newData = [];
-      geojson_latlons = [];
-      data.forEach(function (ea, i) {
-        var d;
-        if (i == 0) {
-          d = 0;
-        } else {
-          var prev = data[i-1];
-          d = hvrsn([prev.loc.lat, prev.loc.lon], [ea.loc.lat, ea.loc.lon]);
-        }
-        accumLen = (Number(accumLen) + Number(d)).toFixed(2);
-        ea.d = accumLen;
-        newData.push(ea);
-        geojson_latlons.push([ea.loc.lon, ea.loc.lat]);
-      });
-
-      newData.forEach(function (ea, i) {
-        L.circle([ea.loc.lat, ea.loc.lon], 2, {color: "red", weight: 1}).bindPopup("Circle Index: " + String(i) + "<br>Cumulative Dist: " + ea.d).addTo(map);
-      });
-
-
-      var geojson = {
-        "type": "LineString",
-        "coordinates": geojson_latlons
+        var geojson = {
+          "type": "LineString",
+          "coordinates": geojson_latlons
+        };
+        return geojson;
       };
-      return geojson;
-    };
 
-    function walkThroughAlgorithm (issuePoints) {
-      issuePoints.forEach(function (issue, issue_i) {
-        issPt = [issue._latlng.lat, issue._latlng.lng];
-        route.coordinates.forEach(function (pt, i) {
-          if (i > 40 && i < 60) {
-            var geojson = {
-              "type": "LineString",
-              "coordinates": [[issPt[1], issPt[0]], pt]
-            };
-            var style = {
-              "color": "red",
-              "weight": 1,
-            };
-            drawLines[issue.properties].push(L.geoJson(geojson, {style: style}));
-          }
+      function walkThroughAlgorithm (issuePoints) {
+        issuePoints.forEach(function (issue, issue_i) {
+          issPt = [issue._latlng.lat, issue._latlng.lng];
+          route.coordinates.forEach(function (pt, i) {
+            if (i > 37 && i < 60) {
+              var geojson = {
+                "type": "LineString",
+                "coordinates": [[issPt[1], issPt[0]], pt]
+              };
+              var style = {
+                "color": "red",
+                "weight": 1,
+              };
+              drawLines[issue.properties].push(L.geoJson(geojson, {style: style}));
+            }
+          });
         });
-      });
-      animateLines();
-    };
+        animateLines();
+      };
 
-    function animateLines () {
-      var minDist = {"10": null, "11": null};
-      var chosenDrawn = {"10": {a: null, b: null}, "11": {a: null, b: null}};
-      var currDrawn = {a: null, b: null};
+      function animateLines () {
+        var minDist = {"10": null, "11": null};
+        var chosen = {"10": {a: null, b: null, pt: null}, "11": {a: null, b: null, pt: null}};
+        var currDrawn = {a: null, b: null};
 
-      draw("10");
+        draw("10");
 
-      function draw (mrkr) {
-        var a = drawLines[mrkr].shift();
-        var b = drawLines[mrkr].shift();
-        if (currDrawn.a !== null && currDrawn.b !== null) {
-          map.removeLayer(currDrawn.a);
-          map.removeLayer(currDrawn.b);
-        }
-        if (b == undefined) {
-          if (mrkr == "10") {
-            $("#CURRseq" + mrkr)[0].innerText = "- ";
-            draw("11")
+        function draw (mrkr) {
+          var a, b;
+
+          if (currDrawn.a == null && currDrawn.b == null) {
+            a = drawLines[mrkr].shift();
+            b = drawLines[mrkr].shift();
           } else {
-            // we are done
-            $("#CURRseq" + mrkr)[0].innerText = "- ";
-            console.log("Done")
-          }
-        } else {
-          // first pt is always the Issue pt
-          a_ll = null;
-          a.eachLayer(function (l) {
-            a_ll = l._latlngs;
-          });
-          a.addTo(map);
-
-          b_ll = null;
-          b.eachLayer(function (l) {
-            b_ll = l._latlngs;
-          });
-          b.addTo(map);
-
-          var distA = hvrsn([a_ll[0].lat, a_ll[0].lng], [a_ll[1].lat, a_ll[1].lng]);
-          var distB = hvrsn([b_ll[0].lat, b_ll[0].lng], [b_ll[1].lat, b_ll[1].lng]);
-          var dist = distA + distB;
-
-
-          $("#CURRseq" + mrkr)[0].innerText = dist.toFixed(2) + " m";
-
-          if (minDist[mrkr] == null || Number(minDist[mrkr]) > Number(dist)) {
-            minDist[mrkr] = Number(dist);
-            $("#seq" + mrkr)[0].innerText = dist.toFixed(2) + " m";
-
-            if (chosenDrawn[mrkr]["a"] !== null) {
-              map.removeLayer(chosenDrawn[mrkr]["a"]);
-            }
-            if (chosenDrawn[mrkr]["b"] !== null) {
-              map.removeLayer(chosenDrawn[mrkr]["b"]);
-            }
-
-            a.setStyle({color: "green", weight: 3});
-            chosenDrawn[mrkr]["a"] = a;
-            b.setStyle({color: "green", weight: 3});
-            chosenDrawn[mrkr]["b"] = b;
-
-            currDrawn.a = null;
-            currDrawn.b = null;
-          } else {
-            // update global vars w/ latest
-            currDrawn.a = a;
-            currDrawn.b = b;
+            map.removeLayer(currDrawn.a);
+            a = currDrawn.b;
+            b = drawLines[mrkr].shift();
           }
 
-          setTimeout(function () { draw(mrkr); }, 2000);
-        }
-        
-      }
+          if (b == undefined) {            
+            map.removeLayer(currDrawn.a);
+            map.removeLayer(currDrawn.b);
+            
+            calculateMaxDist(mrkr, chosen);
 
+            if (mrkr == "10") {
+              $("#CURRseq" + mrkr)[0].innerText = "- ";
+
+              currDrawn = {a: null, b: null};
+              draw("11");
+
+            } else {
+              // we are done
+              $("#CURRseq" + mrkr)[0].innerText = "- ";
+              console.log("Done")
+            }
+          } else {
+            // first pt is always the Issue pt
+            a_ll = null;
+            a.eachLayer(function (l) {
+              a_ll = l._latlngs;
+            });
+            a.addTo(map);
+
+            b_ll = null;
+            b.eachLayer(function (l) {
+              b_ll = l._latlngs;
+            });
+            b.addTo(map);
+
+            var distA = hvrsn([a_ll[0].lat, a_ll[0].lng], [a_ll[1].lat, a_ll[1].lng]);
+            var distB = hvrsn([b_ll[0].lat, b_ll[0].lng], [b_ll[1].lat, b_ll[1].lng]);
+            var dist = distA + distB;
+
+
+            $("#CURRseq" + mrkr)[0].innerText = dist.toFixed(2) + " m";
+
+            if (minDist[mrkr] == null || Number(minDist[mrkr]) > Number(dist)) {
+              minDist[mrkr] = Number(dist);
+              $("#seq" + mrkr)[0].innerText = dist.toFixed(2) + " m";
+
+              if (chosen[mrkr]["a"] !== null) {
+                map.removeLayer(chosen[mrkr]["a"]);
+              }
+              if (chosen[mrkr]["b"] !== null) {
+                map.removeLayer(chosen[mrkr]["b"]);
+              }
+
+              a.setStyle({color: "green", weight: 3});
+              chosen[mrkr]["a"] = a;
+              b.setStyle({color: "green", weight: 3});
+              chosen[mrkr]["b"] = b;
+
+              var ll;
+              a.eachLayer(function (ea) {
+                ll = ea.getLatLngs();
+              });
+
+              crumbs.forEach(function (st, st_i) {
+                ll.forEach(function (l) {
+                  var lat = st.getLatLng().lat == l.lat;
+                  var lng = st.getLatLng().lng == l.lng;
+                  if (lat && lng) {
+                    chosen[mrkr].pt = {"from": st};
+                    chosen[mrkr].pt.to = crumbs[st_i];
+                  }
+                });
+              });
+
+              currDrawn.a = null;
+              currDrawn.b = null;
+            } else {
+              // update global vars w/ latest
+              currDrawn.a = a;
+              currDrawn.b = b;
+            }
+
+            setTimeout(function () { draw(mrkr); }, 700);
+          }
+          
+        }
+
+      };
     };
-    
     function hvrsn (ll1, ll2) {
       var dlat = ll2[0] - ll1[0],
           dlon = ll2[1] - ll1[1],
@@ -319,10 +320,153 @@
       return (d * (Math.PI/180));
     };
 
+    function calculateMaxDist (mrkr, chosen) {
+      var mlat = markers[mrkr].getLatLng().lat;
+      var mlng = markers[mrkr].getLatLng().lng;
+      var st = [mlat, mlng];
+
+      var ptBlat = chosen[mrkr].pt.to.getLatLng().lat;
+      var ptBlng = chosen[mrkr].pt.to.getLatLng().lng;
+      var ptB = [ptBlat, ptBlng];
+
+      var cholat = chosen[mrkr].pt.from.getLatLng().lat;
+      var cholng = chosen[mrkr].pt.from.getLatLng().lng;
+      var ptA = [cholat, cholng];
+
+      var bestDist_dumb = hvrsn([mlat, mlng], ptA) + Number(chosen[mrkr].pt.from.properties.d);
+      $("#final_dist_" + mrkr)[0].innerText = bestDist_dumb.toFixed(2) + " meters";
+
+
+      var bestDist_smart = hvrsn(getAllignedStop(ptB, st, ptA), st) + Number(chosen[mrkr].pt.from.properties.d);
+      $("#final_smartdist_" + mrkr)[0].innerText = bestDist_smart.toFixed(2) + " meters";
+
+    };
+
+    function getAllignedStop (ptB, st, ptA) {
+      var sb = hvrsn(st, ptB),
+          ba = hvrsn(ptB, ptA),
+          as = hvrsn(ptA, st);
+
+      if (ba == 0) {
+        return ptA;
+      } else {
+        var angle = {
+              a: Math.acos(((as * as) + (ba * ba) - (sb * sb)) / (2 * ba * as)),
+              s: Math.acos(((as * as) + (sb * sb) - (ba * ba)) / (2 * sb * as)),
+              b: Math.acos(((sb * sb) + (ba * ba) - (as * as)) / (2 * ba * sb))
+            };
+
+        if (angle.a >= 90 || angle.b >= 90)
+          return null;
+
+        angle['s1'] = 90 - angle.b;
+        angle['s2'] = 90 - angle.a;
+
+        var v = Math.cos(angle.s2) * as,
+
+            p1 = Math.tan(angle.s1) * v,
+            p2 = Math.tan(angle.s2) * v,
+
+            crnr = [ptA[0], ptB[1]],
+            genh = hvrsn(ptB, crnr),
+            genw = hvrsn(crnr, ptA);
+
+        var vecAng, latrat, lonrat;
+        if (genh == 0 && genw !== 0)
+          vecAng = Math.asin(genw/ba);
+        else if (genh !== 0 && genw == 0)
+          vecAng = Math.asin(genh/ba);
+        else
+          return ptA;
+
+        var delh = Math.sin(vecAng) * p2,
+            delw = Math.cos(vecAng) * p2;
+
+        var latrat, lonrat;
+        if (genh == 0 && genw !== 0) {
+          latrat = 0;
+          lonrat = 1;
+        }
+        else if (genh !== 0 && genw == 0) {
+          latrat = 1;
+          lonrat = 0;
+        }
+        else {
+          latrat = delh / genh;
+          lonrat = delw / genw;
+        }
+
+        var lat = ptA[0] - ((ptA[0] - ptB[0]) * latrat),
+            lon = ptA[1] - ((ptA[1] - ptB[1]) * lonrat);
+
+        if (isNaN(lat) || isNaN(lon)) {
+          console.log('NaN Err: ', vecAng);
+          console.log(delh, delw);
+          console.log(lat, lon);
+          console.log('');
+        } else {
+          return [lat, lon];
+        }
+      }
+    };
+
 
   </script>
 
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+
+
+  <style>
+    body {
+      background-color: #ffd000;
+    }
+
+    .top_info {
+      position: fixed;
+      top: 0px;
+      background-color: #ffd000;
+      margin-left: 20px;
+      z-index: 1;
+    }
+
+    .panel {
+      box-shadow: -3px 3px 50px 1px rgba(0,0,0,0.5);
+    }
+
+    .map {
+      width: 100%;
+      height: 600px;
+      background-color: orange;
+    }
+
+    .stat_base {
+      position: fixed;
+      top: 5px;
+      right: 5px;
+      z-index: 2;
+    }
+
+  </style>
+
+  <script type="text/javascript">
+    $(".map").height(window.innerHeight);
+    place_info_box();
+    window.onresize = function () { place_info_box() };
+
+    function place_info_box () {
+      if (window.innerWidth < 925)
+        $("#info_modal").removeClass("stat_base")
+      else
+        $("#info_modal").addClass("stat_base")
+    }
+  </script>
+
+
+  <!-- css libraries -->
+  <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7.5/leaflet.css">
+  
+  <!-- js toolset -->
+  <script src="http://cdn.leafletjs.com/leaflet-0.7.5/leaflet.js"></script>
 </html>
 
 
