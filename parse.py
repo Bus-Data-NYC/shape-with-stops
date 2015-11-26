@@ -36,13 +36,11 @@ def structureFetchResult(row):
 
 
 def calculateShapeDistances(shape):
-	runningDistanceTally = 0
+	runningDistanceTally = float(0)
 	for i, pt in enumerate(shape):
-		if i == 0:
-			shape[i]["d"] = float(0)
-		else:
+		if i > 0:
 			runningDistanceTally += haversine(shape[i]["loc"], shape[i-1]["loc"])
-			shape[i]["d"] = round(runningDistanceTally, 2)
+		shape[i]["d"] = round(runningDistanceTally, 2)
 	return shape
 
 
@@ -121,12 +119,14 @@ allShapeIDs = [allShapeIDs[9]]
 # print allShapeIDs[9]
 WTF = 0
 
+
+
 for shape_index, shape_id in enumerate(allShapeIDs):
 	trips = getTripsForShape(shape_id)
 	shape = sqlQuery(shape_id)
 
 	# DEBUG
-	trips = {"431": trips["431"]}
+	# trips = {"431": trips["431"]}
 
 	for tripID in trips:
 		tripshape = list(shape)
@@ -134,6 +134,7 @@ for shape_index, shape_id in enumerate(allShapeIDs):
 
 		for stop_i, stop_pt in enumerate(trip):
 			minDist = None
+			closest = None
 			for shape_i, shape_pt in enumerate(tripshape):
 				thisDist = None
 				if stop_i == 0:
@@ -141,9 +142,12 @@ for shape_index, shape_id in enumerate(allShapeIDs):
 				else:
 					shape_prev = tripshape[shape_i-1]
 					thisDist = haversine(stop_pt["loc"], shape_pt["loc"]) + haversine(stop_pt["loc"], shape_prev["loc"])
-					thisDist += shape_prev["d"]
-				if minDist is None or float(minDist) > thisDist:
-					minDist = round(thisDist, 2)
+				if closest is None or closest > thisDist:
+					closest = thisDist
+					if stop_i == 0:
+						minDist = 0
+					else:
+						minDist = round(shape_prev["d"], 2)
 			
 			if stop_i > 0:
 				trip[stop_i]["d"] = minDist
@@ -155,9 +159,8 @@ for shape_index, shape_id in enumerate(allShapeIDs):
 			else:
 				trip[stop_i]["d"] = minDist
 
-		print "\n-------End of trip--------\n"
+		# print "\n-------End of trip--------\n"
 		trips[tripID] = trip
-		print trips[tripID]
 
 	print "Completed operations for shape_id " + str(shape_id) + " (" + str(shape_index + 1) + "/" + str(len(allShapeIDs)) + ")"
 	print WTF
