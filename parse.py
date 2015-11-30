@@ -1,6 +1,8 @@
 from math import radians, cos, sin, asin, sqrt
 import mysql.connector
 import resource
+import datetime
+import random
 import pprint
 import io
 import json
@@ -20,11 +22,14 @@ cnx = mysql.connector.connect(user = creds["username"],
 
 # Utilities
 
+global_start_time = datetime.datetime.now()
 def logOps(msg=None):
+	current_time = datetime.datetime.now()
+	elapsed_time = current_time - global_start_time
 	if msg is not None:
-		print "\tLogged err: " + str(msg)
+		print "Logged: " + str(msg)
 	memStr = str(round((float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1000000), 2))
-	print "\tCurrent mem usage: " + memStr + " mb."
+	print "\tCurrent mem usage: " + memStr + " mb.\n\tElapsed time: " + str(elapsed_time)
 
 
 def structureFetchResult(row):
@@ -62,7 +67,7 @@ def haversine(pt1, pt2):
 
 
 def getAllShapeIDs():
-	with io.open("allpts.csv", "r") as stream:
+	with io.open("data/shapes.csv", "r") as stream:
 		allShapeIDs = list()
 		for row in stream:
 			row = row.rstrip().split(",")
@@ -74,29 +79,40 @@ def getAllShapeIDs():
 	return allShapeIDs
 
 
-def getTripsForShape(shape_id):
-	with io.open("allpts.csv", "r") as stream:
-		trips = dict()
+def getTripsSQLQuery(shape_id):
+	query = "SELECT st.trip_index, stop_sequence, s.stop_id, stop_lat, stop_lon "
+	query += "FROM trips as t INNER JOIN stop_times as st ON t.trip_index = st.trip_index "
+	query += "INNER JOIN stops AS s ON (t.feed_index = s.feed_index AND st.stop_id = s.stop_id) "
+	query += "WHERE shape_index = " + shape_id + " "
+	query += "GROUP BY shape_index, st.trip_index, stop_sequence;"
+	
+	cursor = cnx.cursor()
+	cursor.execute(query)
+	return cursor.fetchall()
 
-		# sort by trip ids
-		for row in stream:
-			row = row.rstrip().split(",")
-			if row[0] != "shape_index" and int(row[0]) == shape_id:
-				tripID = row[2]
-				if tripID not in trips:
-					trips[tripID] = list()
-				trips[tripID].append({
-						"seq": int(row[1]),
-						"id": int(row[3]),
-						"loc": (float(row[4]), float(row[5]))
-					})
+
+def getTripsForShape(shape_id):
+	stream = getTripsSQLQuery(str(shape_id))
+	# with io.open("data/pts.csv", "r") as stream:
+	trips = dict()
+
+	# sort by trip ids
+	for row in stream:
+		if row[0] != "trip_index":
+			tripID = row[0]
+			if tripID not in trips:
+				trips[tripID] = list()
+			trips[tripID].append({
+					"seq": int(row[1]),
+					"id": int(row[2]),
+					"loc": (float(row[3]), float(row[4]))
+				})
 
 	# sort each trip by sequence so results in order
 	for trip in trips:
 		trips[trip] = sorted(trips[trip], key=lambda k: k["seq"], reverse=False)
-	stream.close()
 	return trips
-				
+
 
 def sqlQuery(shape_id):
 	cursor = cnx.cursor()
@@ -112,12 +128,13 @@ def sqlQuery(shape_id):
 
 # Begin streaming the CSV
 # line struct: shape_index, stop_sequence, trip_index, stop_id, stop_lat, stop_lon
+logOps("Starting the get all shapes stream.")
 allShapeIDs = getAllShapeIDs()
+logOps("Finished the get all shapes stream.")
 
-# DEBUG
-WTF = 0
-
-
+output = open('data/out.csv', 'w')
+output.write("shape_index,stop_id,dist\n")
+output.close()
 
 for shape_index, shape_id in enumerate(allShapeIDs):
 	trips = getTripsForShape(shape_id)
@@ -139,26 +156,28 @@ for shape_index, shape_id in enumerate(allShapeIDs):
 					thisDist = haversine(stop_pt["loc"], shape_pt["loc"]) + haversine(stop_pt["loc"], shape_prev["loc"])
 				if closest is None or closest > thisDist:
 					closest = thisDist
-					if stop_i == 0:
+					if stop_i is 0:
 						minDist = 0
 					else:
 						minDist = round(shape_prev["d"], 2)
 			
-			if stop_i > 0:
-				trip[stop_i]["d"] = minDist
-				if trip[stop_i-1]["d"] > trip[stop_i]["d"]:
-					WTF += 1
-					print "\nWTF Issue with shape " + str(shape_id) + " and trip id " + str(tripID)
-					print stop_i, trip[stop_i], trip[stop_i]["d"]
-					print stop_i-1, trip[stop_i-1], trip[stop_i-1]["d"]
-			else:
-				trip[stop_i]["d"] = minDist
+			trip[stop_i]["d"] = minDist
 
-		# print "\n-------End of trip--------\n"
-		trips[tripID] = trip
+			# DEBUG catch "backwards" points
+			if stop_i > 0:
+				if trip[stop_i-1]["d"] > trip[stop_i]["d"]:
+					print "\nIssue with shape " + str(shape_id) + " and trip id " + str(tripID)
+					print "Current stop: " + str(stop_i) + str(trip[stop_i]) + str(trip[stop_i]["d"])
+					print "Previous stop: " + str(stop_i-1) + str(trip[stop_i-1]) + str(trip[stop_i-1]["d"])
+
+			new_line = ",".join([str(shape_index), str(trip[stop_i]["id"]), str(trip[stop_i]["d"])])
+			new_line +=  "\n"
+			output = open('data/out.csv', 'a')
+			output.write(new_line)
+			output.close()
 
 	print "Completed operations for shape_id " + str(shape_id) + " (" + str(shape_index + 1) + "/" + str(len(allShapeIDs)) + ")"
-	print WTF
+	logOps()
 
 
 print "Done"
