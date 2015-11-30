@@ -115,8 +115,6 @@ def sqlQuery(shape_id):
 allShapeIDs = getAllShapeIDs()
 
 # DEBUG
-allShapeIDs = [allShapeIDs[9]]
-# print allShapeIDs[9]
 WTF = 0
 
 
@@ -124,9 +122,6 @@ WTF = 0
 for shape_index, shape_id in enumerate(allShapeIDs):
 	trips = getTripsForShape(shape_id)
 	shape = sqlQuery(shape_id)
-
-	# DEBUG
-	# trips = {"431": trips["431"]}
 
 	for tripID in trips:
 		tripshape = list(shape)
