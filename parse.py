@@ -16,7 +16,7 @@ with open("credentials.json") as c:
 cnx = mysql.connector.connect(user = creds["username"], 
 															host = creds["host"],
 															password = creds["password"],
-                              database = creds["database"]);
+															database = creds["database"]);
 
 
 
@@ -70,11 +70,9 @@ def getAllShapeIDs():
 	with io.open("data/shapes.csv", "r") as stream:
 		allShapeIDs = list()
 		for row in stream:
-			row = row.rstrip().split(",")
-			if row[0] != "shape_index":
-				si = int(row[0])
-				if si not in allShapeIDs:
-					allShapeIDs.append(si)
+			val = row.rstrip().split(",")[0]
+			if val != "shape_index" and val not in allShapeIDs:
+				allShapeIDs.append(int(val))
 	stream.close()
 	return allShapeIDs
 
@@ -176,8 +174,15 @@ for shape_index, shape_id in enumerate(allShapeIDs):
 			output.write(new_line)
 			output.close()
 
-	print "Completed operations for shape_id " + str(shape_id) + " (" + str(shape_index + 1) + "/" + str(len(allShapeIDs)) + ")"
-	logOps()
+		# Completed a tripID
+		trip = None
+		tripshape = None
+
+	# Completed trips and shape
+	trips = None
+	shape = None
+
+	logOps("Completed operations for shape_id " + str(shape_id) + " (" + str(shape_index + 1) + "/" + str(len(allShapeIDs)) + ")")
 
 
 print "Done"

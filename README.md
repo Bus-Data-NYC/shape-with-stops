@@ -10,7 +10,7 @@ This is now a Python tool. You should run it in a virtual environment. Required 
 Note: the MySQL library has issues installing "normally." In order to install, run the following:
 ```pip install --allow-external mysql-connector-python mysql-connector-python```
 
-For more on this issue, go here: https://geert.vanderkelen.org/2014/install-mysqlcpy-using-pip/
+For more on this issue, go here: https://geert.vanderkelen.org/2014/install-mysqlcpy-using-pip/. Also note that you may have to run this with `sudo` (so: `sudo pip install ...`).
 
 
 ### Resources
