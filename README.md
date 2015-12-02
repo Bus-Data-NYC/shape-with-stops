@@ -21,6 +21,8 @@ For more on this issue, go here: https://geert.vanderkelen.org/2014/install-mysq
 
 No outside resources are necessary, aside from the GTFS folder, unzipped which needs to be placed in the root directory's `data/` folder such that, from `root`, `./data/gtfs/*.txt`.
 
+Want an example GTFS feed to start with? Try New York City's MTA GTFS, located: http://web.mta.info/developers/developer-data-terms.html#data. There are 5 GTFS zip files, one for each borough. To create the stop distances, you will need to download each of the 5 and run this on each of them, separately (or write a simple script to chain all of them together, up to you - I kept it out of this to enable this to be used for any standard GTFS unzipped file).
+
 If using the custom version of the tool:
 Use the supplied `shapes.csv` file (ONLY for the custom version of the tool) if you are interested in curating your own dataset or the one supplied here is outdated. Currently the `shapes.csv` file should be representative of the current system as of November 16, 2015.
 
