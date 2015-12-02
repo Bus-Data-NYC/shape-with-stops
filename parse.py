@@ -1,23 +1,31 @@
 from math import radians, cos, sin, asin, sqrt
-import mysql.connector
 import resource
 import datetime
 import random
-import pprint
 import io
+import os.path
 import json
 import sys
 
-# load credentials
-creds = None
-with open("credentials.json") as c:
-	creds = json.load(c)
 
-cnx = mysql.connector.connect(user = creds["username"], 
-															host = creds["host"],
-															password = creds["password"],
-															database = creds["database"]);
 
+# Make Python 2 compliant with FileNotFoundError from Python 3
+
+try:
+    FileNotFoundError
+except NameError:
+    FileNotFoundError = IOError
+
+
+
+# Check if all files are accounted for
+
+gtfs_files = ["shapes", "stop_times", "stops", "trips"]
+for file_path in gtfs_files:
+	file_path = "data/gtfs/" + file_path + ".txt"
+	if not os.path.exists(file_path):
+		raise FileNotFoundError(str(file_path) + " path missing file.")
+gtfs_files = None
 
 
 # Utilities
@@ -26,18 +34,10 @@ global_start_time = datetime.datetime.now()
 def logOps(msg=None):
 	current_time = datetime.datetime.now()
 	elapsed_time = current_time - global_start_time
-	if msg is not None:
+	if msg != None:
 		print "Logged: " + str(msg)
 	memStr = str(round((float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1000000), 2))
 	print "\tCurrent mem usage: " + memStr + " mb.\n\tElapsed time: " + str(elapsed_time)
-
-
-def structureFetchResult(row):
-	d = {
-		"loc": (float(row[0]), float(row[1])),
-		"id": int(row[2])
-	}
-	return d
 
 
 def calculateShapeDistances(shape):
@@ -67,61 +67,99 @@ def haversine(pt1, pt2):
 
 
 def getAllShapeIDs():
-	with io.open("data/shapes.csv", "r") as stream:
-		allShapeIDs = list()
+	with io.open("data/gtfs/shapes.txt", "r") as stream:
+		all_shape_ids = list()
 		for row in stream:
 			val = row.rstrip().split(",")[0]
-			if val != "shape_index" and val not in allShapeIDs:
-				allShapeIDs.append(int(val))
+			if val != "shape_id" and val not in all_shape_ids:
+				val = str(val)
+				all_shape_ids.append(val)
 	stream.close()
-	return allShapeIDs
-
-
-def getTripsSQLQuery(shape_id):
-	query = "SELECT st.trip_index, stop_sequence, s.stop_id, stop_lat, stop_lon "
-	query += "FROM trips as t INNER JOIN stop_times as st ON t.trip_index = st.trip_index "
-	query += "INNER JOIN stops AS s ON (t.feed_index = s.feed_index AND st.stop_id = s.stop_id) "
-	query += "WHERE shape_index = " + shape_id + " "
-	query += "GROUP BY shape_index, st.trip_index, stop_sequence;"
-	
-	cursor = cnx.cursor()
-	cursor.execute(query)
-	return cursor.fetchall()
+	return all_shape_ids
 
 
 def getTripsForShape(shape_id):
-	stream = getTripsSQLQuery(str(shape_id))
-	# with io.open("data/pts.csv", "r") as stream:
 	trips = dict()
+	stop_ids = list()
 
-	# sort by trip ids
-	for row in stream:
-		if row[0] != "trip_index":
-			tripID = row[0]
-			if tripID not in trips:
-				trips[tripID] = list()
-			trips[tripID].append({
-					"seq": int(row[1]),
-					"id": int(row[2]),
-					"loc": (float(row[3]), float(row[4]))
-				})
+	with io.open("data/gtfs/trips.txt", "r") as stream:
+		for row in stream:
+			row = row.rstrip().split(",")
+			if row[0] != "route_id":
+				if len(row) == 6 and str(row[5]) == shape_id:
+					trips[str(row[2])] = []
+	stream.close()
+	
+	with io.open("data/gtfs/stop_times.txt", "r") as stream:
+		for row in stream:
+			row = row.rstrip().split(",")
+			if row[0] != "trip_id":
+				if len(row) == 7 and row[0] in trips:
+					trips[str(row[0])].append({
+							"seq": int(row[4]),
+							"id": int(row[3])
+						})
+					new_stop_id = int(row[3])
+					if new_stop_id not in stop_ids:
+						stop_ids.append(new_stop_id)
+	stream.close()
 
-	# sort each trip by sequence so results in order
-	for trip in trips:
-		trips[trip] = sorted(trips[trip], key=lambda k: k["seq"], reverse=False)
-	return trips
+	def addLoc(stop_id, latlng):
+		ok = False
+		for trip in trips:
+			for stop_index, stop in enumerate(trips[trip]):
+				if stop["id"] == stop_id:
+					latlng = (float(row[3]), float(row[4]))
+					trips[trip][stop_index]["loc"] = latlng
+					ok = True
+		return ok
+
+	with io.open("data/gtfs/stops.txt", "r") as stream:
+		for row in stream:
+			row = row.rstrip().split(",")
+			if row[0] != "stop_id":
+				stop_id = int(row[0])
+				if len(row) == 9 and stop_id in stop_ids:
+					latlng = (float(row[3]), float(row[4]))
+					success = addLoc(stop_id, latlng)
+					if success == True:
+						stop_ids.remove(stop_id)
+					else:
+						raise Exception("Stop ID (" + str(stop_id) + ") missing in stops.txt")
+	stream.close()
+
+	missing = len(stop_ids)
+	if missing == 0:
+		# sort each trip by sequence so results in order
+		for trip in trips:
+			trips[trip] = sorted(trips[trip], key=lambda k: k["seq"], reverse=False)
+		return trips
+	else:
+		raise Exception("Incomplete trip data, " + str(missing) + " bad objects")
 
 
-def sqlQuery(shape_id):
-	cursor = cnx.cursor()
-	query = "SELECT shape_pt_lat, shape_pt_lon, shape_pt_sequence FROM shapes WHERE shape_index = " + str(shape_id)
-	cursor.execute(query)
+def getShape(shape_id):
+	shape = list()
 
-	# get results, order by id increasing, and then clean for just lat/lon tuples
-	result = map(structureFetchResult, cursor.fetchall())
-	result = sorted(result, key=lambda k: k["id"], reverse=False)
-	result = calculateShapeDistances(result)
-	return result
+	with io.open("data/gtfs/shapes.txt", "r") as stream:
+		shape = list()
+		for row in stream:
+			row = row.rstrip().split(",")
+			sh_id = str(row[0])
+			if sh_id != "shape_id" and sh_id == shape_id and len(row) == 4:
+				shape.append({
+						"loc": (float(row[1]), float(row[2])),
+						"seq": int(row[3])
+					})
+	stream.close()
+
+	# order by id increasing
+	shape = sorted(shape, key=lambda k: k["seq"], reverse=False)
+	shape = calculateShapeDistances(shape)
+	return shape
+
+
+
 
 
 # Begin streaming the CSV
@@ -130,13 +168,15 @@ logOps("Starting the get all shapes stream.")
 allShapeIDs = getAllShapeIDs()
 logOps("Finished the get all shapes stream.")
 
+
 output = open('data/out.csv', 'w')
 output.write("shape_index,stop_id,dist\n")
 output.close()
 
+
 for shape_index, shape_id in enumerate(allShapeIDs):
 	trips = getTripsForShape(shape_id)
-	shape = sqlQuery(shape_id)
+	shape = getShape(shape_id)
 
 	for tripID in trips:
 		tripshape = list(shape)
@@ -152,9 +192,9 @@ for shape_index, shape_id in enumerate(allShapeIDs):
 				else:
 					shape_prev = tripshape[shape_i-1]
 					thisDist = haversine(stop_pt["loc"], shape_pt["loc"]) + haversine(stop_pt["loc"], shape_prev["loc"])
-				if closest is None or closest > thisDist:
+				if closest == None or closest > thisDist:
 					closest = thisDist
-					if stop_i is 0:
+					if stop_i == 0:
 						minDist = 0
 					else:
 						minDist = round(shape_prev["d"], 2)
