@@ -1,13 +1,17 @@
 ## What is this
 
-It takes in the `shapes.csv` and queries for the shapefile lat/lngs from Nathan's db (this part could be replaced with some alternative source for the shapefiles, such as the OBA Path Extractor from this org) and then runs a series of procedures to determine the distance along the route at each stop for each stop provided in the `allpts.csv` file. The output is a csv file names `out.csv`. It has three column values: `shape_index`, `stop_id`, `dist`. From this data, you can calculate speed along the route once you determine inferred arrivals and exits from a stop point along the route.
+This is a tool that takes an unzupped GTFS folder and returns the following a csv called `out.csv` that contains the following columns: `shape_index`, `stop_id`, `dist`.
+
+The purpose of this tool is to calculate the distance along the route that each stop is at, by shape index and stop_id. The output csv is placed in the `data/` folder. Why create this tool? From this data, you can calculate speed along the route once you determine inferred arrivals and exits from a stop point along the route.
 
 
-### Run it yourself
+### How to run
 
-This is now a Python tool. You should run it in a virtual environment. Required files are in listed in the `requirements.txt` file. Pip install those. To run, `python parse.py` will do once requirements are installed and the 2 files you need - `shapes.csv` and `pts.csv` are presently in the root file as well. 
+This is now a Python tool (originally a Node tool, for those following along). You should run it in a virtual environment. Required files are in listed in the `requirements.txt` file. Pip install those (there currently are no outside requirements for the basic version of this tool, there are additional required libraries outside of the ones packaged with Python in the customized version of this built to work with Nathan9's MySQL database). To run, `python parse.py` will do once requirements are installed. 
 
-Note: the MySQL library has issues installing "normally." In order to install, run the following:
+In order for the tool to work, load the GTFS folder, unzipped, into the `data/` folder such that `./data/gtfs/*.txt`. In order for the tool to work, the following files must be present in their `.txt` form: "shapes", "stop_times", "stops", "trips." If any of those are not present, or any of the files are not in standard GTFS format, this tool will either error or produce incorrect results.
+
+Note: If you are using the customized version of `parse.py`, the MySQL library has issues installing "normally." In order to install, run the following:
 ```pip install --allow-external mysql-connector-python mysql-connector-python```
 
 For more on this issue, go here: https://geert.vanderkelen.org/2014/install-mysqlcpy-using-pip/. Also note that you may have to run this with `sudo` (so: `sudo pip install ...`).
@@ -15,12 +19,16 @@ For more on this issue, go here: https://geert.vanderkelen.org/2014/install-mysq
 
 ### Resources
 
-Use the supplied `shapes.csv` file if you are interested in curating your own dataset or the one supplied here is outdated. Currently the `shapes.csv` file should be representative of the current system as of November 16, 2015.
+No outside resources are necessary, aside from the GTFS folder, unzipped which needs to be placed in the root directory's `data/` folder such that, from `root`, `./data/gtfs/*.txt`.
+
+If using the custom version of the tool:
+Use the supplied `shapes.csv` file (ONLY for the custom version of the tool) if you are interested in curating your own dataset or the one supplied here is outdated. Currently the `shapes.csv` file should be representative of the current system as of November 16, 2015.
 
 
 
 ### Queries
 
+Note: This only applied to the version customized to Nathan9's MySQL DB.
 Creating the `shapes.csv` file involves the following query:
 
 ```
