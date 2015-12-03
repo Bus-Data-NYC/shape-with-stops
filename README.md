@@ -11,7 +11,7 @@ This is now a Python tool (originally a Node tool, for those following along). Y
 
 In order for the tool to work, load the GTFS folder, unzipped, into the `data/` folder such that `./data/gtfs/*.txt`. In order for the tool to work, the following files must be present in their `.txt` form: "shapes", "stop_times", "stops", "trips." If any of those are not present, or any of the files are not in standard GTFS format, this tool will either error or produce incorrect results.
 
-Note: If you are using the customized version of `parse.py`, the MySQL library has issues installing "normally." In order to install, run the following:
+Note: If you are using the customized version of `parse.py` (currently under `parse_custom.py`), the MySQL library has issues installing "normally." In order to install, run the following:
 ```pip install --allow-external mysql-connector-python mysql-connector-python```
 
 For more on this issue, go here: https://geert.vanderkelen.org/2014/install-mysqlcpy-using-pip/. Also note that you may have to run this with `sudo` (so: `sudo pip install ...`).
