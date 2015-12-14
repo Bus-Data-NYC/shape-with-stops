@@ -208,7 +208,7 @@ for shape_index, shape_id in enumerate(allShapeIDs):
 					print "Current stop: " + str(stop_i) + str(trip[stop_i]) + str(trip[stop_i]["d"])
 					print "Previous stop: " + str(stop_i-1) + str(trip[stop_i-1]) + str(trip[stop_i-1]["d"])
 
-			new_line = ",".join([str(shape_index), str(trip[stop_i]["id"]), str(trip[stop_i]["d"])])
+			new_line = ",".join([str(shape_id), str(trip[stop_i]["id"]), str(trip[stop_i]["d"])])
 			new_line +=  "\n"
 			output = open('data/out.csv', 'a')
 			output.write(new_line)
