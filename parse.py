@@ -67,10 +67,14 @@ def haversine(pt1, pt2):
 
 
 def getAllShapeIDs():
-	with io.open("data/gtfs/shapes.txt", "r") as stream:
+	shapes_file = "data/gtfs/shapes.txt"
+	col_names = open(shapes_file).readline().rstrip().split(",")
+	loc_of_shape_id = col_names.index("shape_id")
+	
+	with io.open(shapes_file, "r") as stream:
 		all_shape_ids = list()
 		for row in stream:
-			val = row.rstrip().split(",")[0]
+			val = row.rstrip().split(",")[loc_of_shape_id]
 			if val != "shape_id" and val not in all_shape_ids:
 				val = str(val)
 				all_shape_ids.append(val)
@@ -82,24 +86,36 @@ def getTripsForShape(shape_id):
 	trips = dict()
 	stop_ids = list()
 
-	with io.open("data/gtfs/trips.txt", "r") as stream:
+	trips_file = "data/gtfs/trips.txt"
+	col_names = open(trips_file).readline().rstrip().split(",")
+	loc_of_route_id = col_names.index("route_id")
+	loc_of_shape_id = col_names.index("shape_id")
+	loc_of_trip_id = col_names.index("trip_id")
+
+	with io.open(trips_file, "r") as stream:
 		for row in stream:
 			row = row.rstrip().split(",")
-			if row[0] != "route_id":
-				if len(row) == 6 and str(row[5]) == shape_id:
-					trips[str(row[2])] = []
+			if row[loc_of_route_id] != "route_id":
+				if str(row[loc_of_shape_id]) == shape_id:
+					trips[str(row[loc_of_trip_id])] = []
 	stream.close()
+
+	shapes_times_file = "data/gtfs/stop_times.txt"
+	col_names_st = open(shapes_times_file).readline().rstrip().split(",")
+	loc_of_stop_id_st = col_names_st.index("stop_id")
+	loc_of_stop_sequence_st = col_names_st.index("stop_sequence")
+	loc_of_trip_id_st = col_names_st.index("trip_id")
 	
-	with io.open("data/gtfs/stop_times.txt", "r") as stream:
+	with io.open(shapes_times_file, "r") as stream:
 		for row in stream:
 			row = row.rstrip().split(",")
-			if row[0] != "trip_id":
-				if len(row) == 7 and row[0] in trips:
-					trips[str(row[0])].append({
-							"seq": int(row[4]),
-							"id": int(row[3])
+			if row[loc_of_trip_id_st] != "trip_id":
+				if row[loc_of_trip_id_st] in trips:
+					trips[str(row[loc_of_trip_id_st])].append({
+							"seq": int(row[loc_of_stop_sequence_st]),
+							"id": int(row[loc_of_stop_id_st])
 						})
-					new_stop_id = int(row[3])
+					new_stop_id = int(row[loc_of_stop_id_st])
 					if new_stop_id not in stop_ids:
 						stop_ids.append(new_stop_id)
 	stream.close()
@@ -114,13 +130,19 @@ def getTripsForShape(shape_id):
 					ok = True
 		return ok
 
-	with io.open("data/gtfs/stops.txt", "r") as stream:
+	stops_file = "data/gtfs/stops.txt"
+	col_names_sf = open(stops_file).readline().rstrip().split(",")
+	loc_of_stop_id_sf = col_names_sf.index("stop_id")
+	loc_of_stop_lat_sf = col_names_sf.index("stop_lat")
+	loc_of_stop_lon_sf = col_names_sf.index("stop_lon")
+
+	with io.open(stops_file, "r") as stream:
 		for row in stream:
 			row = row.rstrip().split(",")
-			if row[0] != "stop_id":
-				stop_id = int(row[0])
-				if len(row) == 9 and stop_id in stop_ids:
-					latlng = (float(row[3]), float(row[4]))
+			if row[loc_of_stop_id_sf] != "stop_id":
+				stop_id = int(row[loc_of_stop_id_sf])
+				if stop_id in stop_ids:
+					latlng = (float(row[loc_of_stop_lat_sf]), float(row[loc_of_stop_lon_sf]))
 					success = addLoc(stop_id, latlng)
 					if success == True:
 						stop_ids.remove(stop_id)
@@ -173,11 +195,11 @@ output = open('data/out.csv', 'w')
 output.write("shape_index,stop_id,dist\n")
 output.close()
 
-
+allShapeIDs = allShapeIDs[0:4]
 for shape_index, shape_id in enumerate(allShapeIDs):
 	trips = getTripsForShape(shape_id)
 	shape = getShape(shape_id)
-
+	
 	for tripID in trips:
 		tripshape = list(shape)
 		trip = trips[tripID]
