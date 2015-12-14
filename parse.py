@@ -161,17 +161,24 @@ def getTripsForShape(shape_id):
 
 
 def getShape(shape_id):
+	shapes_file = "data/gtfs/shapes.txt"
+	col_names = open(shapes_file).readline().rstrip().split(",")
+	loc_of_shape_id = col_names.index("shape_id")
+	loc_of_shape_pt_lat = col_names.index("shape_pt_lat")
+	loc_of_shape_pt_lon = col_names.index("shape_pt_lon")
+	loc_of_shape_pt_sequence = col_names.index("shape_pt_sequence")
+
 	shape = list()
 
 	with io.open("data/gtfs/shapes.txt", "r") as stream:
 		shape = list()
 		for row in stream:
 			row = row.rstrip().split(",")
-			sh_id = str(row[0])
-			if sh_id != "shape_id" and sh_id == shape_id and len(row) == 4:
+			sh_id = str(row[loc_of_shape_id])
+			if sh_id != "shape_id" and sh_id == shape_id:
 				shape.append({
-						"loc": (float(row[1]), float(row[2])),
-						"seq": int(row[3])
+						"loc": (float(row[loc_of_shape_pt_lat]), float(row[loc_of_shape_pt_lon])),
+						"seq": int(row[loc_of_shape_pt_sequence])
 					})
 	stream.close()
 
