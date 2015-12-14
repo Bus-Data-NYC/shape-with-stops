@@ -202,7 +202,6 @@ output = open('data/out.csv', 'w')
 output.write("shape_index,stop_id,dist\n")
 output.close()
 
-allShapeIDs = allShapeIDs[0:4]
 for shape_index, shape_id in enumerate(allShapeIDs):
 	trips = getTripsForShape(shape_id)
 	shape = getShape(shape_id)
